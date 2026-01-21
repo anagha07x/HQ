@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/app/decision-ledger')
+
 from fastapi import FastAPI, APIRouter, UploadFile, File
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -10,6 +13,8 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone
 import aiofiles
+from core.ingestion import DataIngestion
+from core.schema_detector import SchemaDetector
 
 
 ROOT_DIR = Path(__file__).parent
