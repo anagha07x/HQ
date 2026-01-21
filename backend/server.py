@@ -180,33 +180,55 @@ async def generate_forecast(request: ForecastRequest):
         if not dataset:
             return {"status": "error", "message": "Dataset not found"}
         
-        file_path = dataset["file_path"]
-        detected_schema = dataset["detected_schema"]
-        
-        # Check if we have required columns
-        if not detected_schema.get("spend") or not detected_schema.get("revenue"):
+        # Check if role mapping is confirmed
+        if not dataset.get("role_mapping_confirmed", False):
             return {
                 "status": "error",
-                "message": "Required columns (spend and revenue) not detected in dataset"
+                "message": "Please confirm column role mapping first"
+            }
+        
+        file_path = dataset["file_path"]
+        role_mapping = dataset.get("role_mapping", [])
+        
+        # Extract ACTION and OUTCOME columns from role mapping
+        action_col = None
+        outcome_col = None
+        
+        for col_map in role_mapping:
+            if col_map["role"] == "ACTION":
+                action_col = col_map["name"]
+                break
+        
+        for col_map in role_mapping:
+            if col_map["role"] == "OUTCOME":
+                outcome_col = col_map["name"]
+                break
+        
+        if not action_col or not outcome_col:
+            return {
+                "status": "error",
+                "message": "Required ACTION and OUTCOME columns not found in role mapping"
             }
         
         # Load data
         ingestion = DataIngestion()
         df = await ingestion.ingest_csv(file_path)
         
-        # Get column names
-        date_col = detected_schema.get("date")
-        spend_col = detected_schema["spend"]
-        revenue_col = detected_schema["revenue"]
+        # Get TIME column if present
+        time_col = None
+        for col_map in role_mapping:
+            if col_map["role"] == "TIME":
+                time_col = col_map["name"]
+                break
         
         # Convert date column if detected
-        if date_col:
-            df[date_col] = pd.to_datetime(df[date_col])
-            df = df.sort_values(by=date_col)
+        if time_col:
+            df[time_col] = pd.to_datetime(df[time_col])
+            df = df.sort_values(by=time_col)
         
         # Train baseline model
         baseline_model = BaselineModel()
-        results = baseline_model.train_spend_revenue_model(df, spend_col, revenue_col)
+        results = baseline_model.train_spend_revenue_model(df, action_col, outcome_col)
         
         # Store forecast in database
         forecast_doc = {
@@ -214,6 +236,8 @@ async def generate_forecast(request: ForecastRequest):
             "dataset_id": request.dataset_id,
             "model_type": "baseline_regression",
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "action_column": action_col,
+            "outcome_column": outcome_col,
             "results": results
         }
         await db.forecasts.insert_one(forecast_doc)
