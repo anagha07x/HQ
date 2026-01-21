@@ -100,23 +100,48 @@ async def upload_dataset(file: UploadFile = File(...)):
             content = await file.read()
             await out_file.write(content)
         
+        # Process CSV and detect schema
+        ingestion = DataIngestion()
+        schema_detector = SchemaDetector()
+        
+        # Load CSV
+        df = await ingestion.ingest_csv(str(file_path))
+        
+        # Detect schema
+        schema = schema_detector.detect_schema(df)
+        
         # Store metadata in database
         file_doc = {
             "id": str(uuid.uuid4()),
             "filename": file.filename,
             "file_path": str(file_path),
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "size": len(content)
+            "size": len(content),
+            "rows": schema["rows"],
+            "columns": schema["columns"],
+            "detected_schema": {
+                "date": schema["date_column"],
+                "spend": schema["spend_column"],
+                "revenue": schema["revenue_column"]
+            }
         }
         await db.datasets.insert_one(file_doc)
         
+        # Return response
         return {
             "status": "success",
-            "message": f"File '{file.filename}' uploaded successfully",
+            "message": f"File '{file.filename}' uploaded and analyzed successfully",
             "dataset_id": file_doc["id"],
-            "size": file_doc["size"]
+            "columns": schema["columns"],
+            "detected_schema": {
+                "date": schema["date_column"],
+                "spend": schema["spend_column"],
+                "revenue": schema["revenue_column"]
+            },
+            "rows": schema["rows"]
         }
     except Exception as e:
+        logger.error(f"Upload error: {str(e)}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
 @api_router.post("/chat")
