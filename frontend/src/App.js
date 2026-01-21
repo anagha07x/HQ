@@ -81,6 +81,33 @@ function App() {
     }
   };
 
+  const generateForecast = async () => {
+    if (!uploadResponse || !uploadResponse.dataset_id) {
+      alert('Please upload a dataset first');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/forecast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dataset_id: uploadResponse.dataset_id,
+          horizon: 30,
+        }),
+      });
+      const data = await response.json();
+      setForecastResponse(data);
+    } catch (error) {
+      setForecastResponse({ status: 'error', message: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const checkHealth = async () => {
     try {
       const response = await fetch(`${API_URL}/api/health`);
