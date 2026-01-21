@@ -220,6 +220,105 @@ function App() {
           )}
         </section>
 
+        {/* Baseline Forecast */}
+        {uploadResponse && uploadResponse.status === 'success' && (
+          <section className="section">
+            <h2>Baseline Forecast</h2>
+            <p className="section-description">
+              Train a simple regression model: revenue = a × spend + b
+            </p>
+            <button 
+              onClick={generateForecast} 
+              disabled={loading}
+              data-testid="generate-forecast-button"
+            >
+              {loading ? 'Generating...' : 'Generate Baseline Forecast'}
+            </button>
+            
+            {forecastResponse && (
+              <div className="response-box" data-testid="forecast-response">
+                {forecastResponse.status === 'success' ? (
+                  <div className="forecast-display">
+                    <div className="success-message">
+                      ✅ Baseline model trained successfully
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Model Formula</h4>
+                      <div className="formula-box">
+                        {forecastResponse.formula}
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Model Performance</h4>
+                      <div className="metrics-grid">
+                        <div className="metric-card">
+                          <span className="metric-label">R² Score</span>
+                          <span className="metric-value">
+                            {(forecastResponse.metrics.r2 * 100).toFixed(2)}%
+                          </span>
+                          <span className="metric-description">
+                            Model explains {(forecastResponse.metrics.r2 * 100).toFixed(1)}% of variance
+                          </span>
+                        </div>
+                        <div className="metric-card">
+                          <span className="metric-label">MAPE Error</span>
+                          <span className="metric-value">
+                            {forecastResponse.metrics.mape.toFixed(2)}%
+                          </span>
+                          <span className="metric-description">
+                            Average prediction error
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Latest Month Prediction</h4>
+                      <div className="prediction-grid">
+                        <div className="prediction-item">
+                          <span className="pred-label">Spend:</span>
+                          <span className="pred-value">
+                            ${forecastResponse.latest_month.spend.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="prediction-item">
+                          <span className="pred-label">Actual Revenue:</span>
+                          <span className="pred-value actual">
+                            ${forecastResponse.latest_month.actual_revenue.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="prediction-item">
+                          <span className="pred-label">Predicted Revenue:</span>
+                          <span className="pred-value predicted">
+                            ${forecastResponse.latest_month.predicted_revenue.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="prediction-item">
+                          <span className="pred-label">Residual (Error):</span>
+                          <span className={`pred-value ${forecastResponse.latest_month.residual > 0 ? 'positive' : 'negative'}`}>
+                            ${forecastResponse.latest_month.residual.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="json-details">
+                      <summary>View Raw JSON</summary>
+                      <pre>{JSON.stringify(forecastResponse, null, 2)}</pre>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="error-message">
+                    ❌ Error: {forecastResponse.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Chat Interface */}
         <section className="section">
           <h2>Chat with AI Agent</h2>
