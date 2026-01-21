@@ -9,7 +9,6 @@ pydantic==2.9.0
 
 # Database
 motor==3.6.0
-pymongo==4.10.1
 
 # Data Processing
 pandas==2.2.2
