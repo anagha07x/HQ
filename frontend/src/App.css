@@ -225,6 +225,106 @@ button:disabled {
   margin-top: 10px;
 }
 
+.section-description {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 15px;
+  font-style: italic;
+}
+
+.forecast-display {
+  margin-top: 10px;
+}
+
+.formula-box {
+  background: #f0f8ff;
+  padding: 15px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  text-align: center;
+  border: 2px solid #4a90e2;
+  color: #004085;
+  font-weight: 600;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-label {
+  font-size: 13px;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.metric-description {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.prediction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.prediction-item {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #6c757d;
+}
+
+.pred-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pred-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #333;
+}
+
+.pred-value.actual {
+  color: #28a745;
+}
+
+.pred-value.predicted {
+  color: #007bff;
+}
+
+.pred-value.positive {
+  color: #28a745;
+}
+
+.pred-value.negative {
+  color: #dc3545;
+}
+
 footer {
   text-align: center;
   margin-top: 40px;
