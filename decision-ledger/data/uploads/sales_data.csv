@@ -1,0 +1,6 @@
+transaction_date,cost,sales_amount,customer_id,product
+2024-01-01,500,2500,C001,ProductA
+2024-01-02,600,2800,C002,ProductB
+2024-01-03,550,2600,C003,ProductA
+2024-01-04,650,3000,C004,ProductC
+2024-01-05,625,2900,C005,ProductB
