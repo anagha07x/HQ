@@ -510,6 +510,168 @@ function App() {
           </section>
         )}
 
+        {/* What-If Simulator */}
+        {roiResponse && roiResponse.status === 'success' && (
+          <section className="section">
+            <h2>What-If Scenario Simulator</h2>
+            <p className="section-description">
+              Compare expected outcomes at different spend levels
+            </p>
+            
+            <div className="simulator-inputs">
+              <div className="input-group">
+                <label htmlFor="current-spend">Current Spend ($)</label>
+                <input
+                  id="current-spend"
+                  type="number"
+                  value={currentSpend}
+                  onChange={(e) => setCurrentSpend(e.target.value)}
+                  placeholder="e.g., 1500"
+                  data-testid="current-spend-input"
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="proposed-spend">Proposed Spend ($)</label>
+                <input
+                  id="proposed-spend"
+                  type="number"
+                  value={proposedSpend}
+                  onChange={(e) => setProposedSpend(e.target.value)}
+                  placeholder="e.g., 2000"
+                  data-testid="proposed-spend-input"
+                />
+              </div>
+              <button 
+                onClick={runSimulation} 
+                disabled={loading}
+                data-testid="run-simulation-button"
+                className="simulate-button"
+              >
+                {loading ? 'Simulating...' : 'Run Simulation'}
+              </button>
+            </div>
+            
+            {simulationResponse && (
+              <div className="response-box" data-testid="simulation-response">
+                {simulationResponse.status === 'success' ? (
+                  <div className="simulation-display">
+                    <div className="success-message">
+                      ✅ Simulation complete
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Scenario Comparison</h4>
+                      <div className="comparison-grid">
+                        <div className="scenario-card current">
+                          <div className="scenario-header">Current Scenario</div>
+                          <div className="scenario-details">
+                            <div className="scenario-row">
+                              <span className="scenario-label">Spend:</span>
+                              <span className="scenario-value">${simulationResponse.current.spend.toFixed(2)}</span>
+                            </div>
+                            <div className="scenario-row">
+                              <span className="scenario-label">Est. Revenue:</span>
+                              <span className="scenario-value highlight">${simulationResponse.current.estimated_revenue.toFixed(2)}</span>
+                            </div>
+                            <div className="scenario-row">
+                              <span className="scenario-label">Marginal ROI:</span>
+                              <span className="scenario-value">{simulationResponse.current.marginal_roi.toFixed(2)}x</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="arrow-container">
+                          <div className="arrow">→</div>
+                        </div>
+
+                        <div className="scenario-card proposed">
+                          <div className="scenario-header">Proposed Scenario</div>
+                          <div className="scenario-details">
+                            <div className="scenario-row">
+                              <span className="scenario-label">Spend:</span>
+                              <span className="scenario-value">${simulationResponse.proposed.spend.toFixed(2)}</span>
+                            </div>
+                            <div className="scenario-row">
+                              <span className="scenario-label">Est. Revenue:</span>
+                              <span className="scenario-value highlight">${simulationResponse.proposed.estimated_revenue.toFixed(2)}</span>
+                            </div>
+                            <div className="scenario-row">
+                              <span className="scenario-label">Marginal ROI:</span>
+                              <span className="scenario-value">{simulationResponse.proposed.marginal_roi.toFixed(2)}x</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Impact Analysis</h4>
+                      <div className="impact-grid">
+                        <div className="impact-card">
+                          <div className="impact-icon">💰</div>
+                          <div className="impact-label">Spend Change</div>
+                          <div className={`impact-value ${simulationResponse.impact.delta_spend >= 0 ? 'positive' : 'negative'}`}>
+                            {simulationResponse.impact.delta_spend >= 0 ? '+' : ''}${simulationResponse.impact.delta_spend.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="impact-card">
+                          <div className="impact-icon">📈</div>
+                          <div className="impact-label">Revenue Change</div>
+                          <div className={`impact-value ${simulationResponse.impact.delta_revenue >= 0 ? 'positive' : 'negative'}`}>
+                            {simulationResponse.impact.delta_revenue >= 0 ? '+' : ''}${simulationResponse.impact.delta_revenue.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="impact-card">
+                          <div className="impact-icon">🎯</div>
+                          <div className="impact-label">Incremental ROI</div>
+                          <div className="impact-value">
+                            {simulationResponse.impact.incremental_roi.toFixed(2)}x
+                          </div>
+                        </div>
+                        <div className="impact-card">
+                          <div className="impact-icon">📊</div>
+                          <div className="impact-label">Efficiency</div>
+                          <div className={`impact-value ${simulationResponse.impact.efficiency_change === 'increase' ? 'positive' : simulationResponse.impact.efficiency_change === 'decrease' ? 'negative' : ''}`}>
+                            {simulationResponse.impact.efficiency_change}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Recommendation</h4>
+                      <div className={`recommendation-box ${simulationResponse.recommendation}`}>
+                        <div className="recommendation-badge">
+                          {simulationResponse.recommendation === 'scale' && '🚀 SCALE'}
+                          {simulationResponse.recommendation === 'hold' && '⏸️ HOLD'}
+                          {simulationResponse.recommendation === 'reduce' && '⬇️ REDUCE'}
+                        </div>
+                        <div className="recommendation-text">
+                          {simulationResponse.recommendation === 'scale' && 
+                            'Strong opportunity: Incremental ROI justifies increased investment.'}
+                          {simulationResponse.recommendation === 'hold' && 
+                            'Maintain current spend: Limited upside from proposed change.'}
+                          {simulationResponse.recommendation === 'reduce' && 
+                            'Consider reducing: Better efficiency at lower spend levels.'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="json-details">
+                      <summary>View Raw JSON</summary>
+                      <pre>{JSON.stringify(simulationResponse, null, 2)}</pre>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="error-message">
+                    ❌ Error: {simulationResponse.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Chat Interface */}
         <section className="section">
           <h2>Chat with AI Agent</h2>
