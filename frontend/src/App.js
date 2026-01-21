@@ -8,6 +8,7 @@ function App() {
   const [chatResponse, setChatResponse] = useState(null);
   const [decisions, setDecisions] = useState(null);
   const [forecastResponse, setForecastResponse] = useState(null);
+  const [roiResponse, setRoiResponse] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const API_URL = process.env.REACT_APP_BACKEND_URL;
