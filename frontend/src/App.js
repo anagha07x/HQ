@@ -139,6 +139,39 @@ function App() {
     }
   };
 
+  const runSimulation = async () => {
+    if (!uploadResponse || !uploadResponse.dataset_id) {
+      alert('Please upload a dataset first');
+      return;
+    }
+
+    if (!currentSpend || !proposedSpend) {
+      alert('Please enter both current and proposed spend');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/simulate-scenario`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dataset_id: uploadResponse.dataset_id,
+          current_spend: parseFloat(currentSpend),
+          proposed_spend: parseFloat(proposedSpend),
+        }),
+      });
+      const data = await response.json();
+      setSimulationResponse(data);
+    } catch (error) {
+      setSimulationResponse({ status: 'error', message: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const checkHealth = async () => {
     try {
       const response = await fetch(`${API_URL}/api/health`);
