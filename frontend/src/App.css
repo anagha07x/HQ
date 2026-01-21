@@ -97,6 +97,134 @@ button:disabled {
   font-size: 12px;
 }
 
+.schema-display {
+  margin-top: 10px;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  border: 1px solid #c3e6cb;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #f5c6cb;
+}
+
+.schema-section {
+  margin-top: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.schema-section:last-of-type {
+  border-bottom: none;
+}
+
+.schema-section h4 {
+  margin: 0 0 10px 0;
+  color: #555;
+  font-size: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.info-item .label {
+  font-weight: 600;
+  color: #666;
+}
+
+.info-item .value {
+  color: #333;
+  font-family: monospace;
+}
+
+.columns-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.column-tag {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #004085;
+  font-family: monospace;
+}
+
+.detected-schema {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.schema-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+.schema-label {
+  font-weight: 600;
+  color: #555;
+  min-width: 160px;
+}
+
+.schema-value {
+  color: #333;
+  font-family: monospace;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid #dee2e6;
+}
+
+.json-details {
+  margin-top: 15px;
+}
+
+.json-details summary {
+  cursor: pointer;
+  padding: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.json-details summary:hover {
+  background: #e0e0e0;
+}
+
+.json-details pre {
+  margin-top: 10px;
+}
+
 footer {
   text-align: center;
   margin-top: 40px;
