@@ -1,0 +1,429 @@
+/* ChanksHQ - Institutional Finance-Grade Design System */
+
+/* ==================== GLOBAL RESET ==================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+  background: #0b0b0b;
+  color: #e0e0e0;
+  line-height: 1.6;
+}
+
+/* ==================== LAYOUT ==================== */
+.App {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* ==================== HEADER ==================== */
+header {
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
+  padding: 24px 32px;
+  margin-bottom: 0;
+}
+
+header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  margin: 0;
+}
+
+header p {
+  color: #808080;
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* ==================== MAIN CONTENT ==================== */
+main {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ==================== SECTIONS ==================== */
+.section {
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
+  padding: 32px;
+}
+
+.section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.section-description {
+  color: #808080;
+  font-size: 13px;
+  margin-bottom: 24px;
+  font-style: normal;
+}
+
+/* ==================== BUTTONS ==================== */
+button {
+  background: #1a1a1a;
+  color: #ffffff;
+  border: 1px solid #2a2a2a;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+button:hover:not(:disabled) {
+  background: #b11226;
+  border-color: #b11226;
+  color: #ffffff;
+}
+
+button:disabled {
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+  color: #4a4a4a;
+  cursor: not-allowed;
+}
+
+button:focus {
+  outline: 1px solid #b11226;
+  outline-offset: 2px;
+}
+
+/* ==================== FORMS ==================== */
+input[type="text"],
+input[type="number"],
+input[type="file"] {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #e0e0e0;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+input:focus {
+  outline: none;
+  border-color: #b11226;
+  background: #151515;
+}
+
+input::placeholder {
+  color: #4a4a4a;
+}
+
+.form-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+/* ==================== DATA DISPLAY BOXES ==================== */
+.response-box {
+  margin-top: 24px;
+  padding: 0;
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+  border-radius: 2px;
+}
+
+.response-box h3 {
+  margin: 0;
+  padding: 16px 20px;
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+}
+
+.response-box pre {
+  background: #0b0b0b;
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: #808080;
+  border: none;
+  margin: 0;
+}
+
+/* ==================== SUCCESS/ERROR MESSAGES ==================== */
+.success-message {
+  background: #0f1f0f;
+  color: #4ade80;
+  padding: 12px 16px;
+  border: 1px solid #1a2e1a;
+  border-radius: 2px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.error-message {
+  background: #1f0f0f;
+  color: #f87171;
+  padding: 12px 16px;
+  border: 1px solid #2e1a1a;
+  border-radius: 2px;
+  font-size: 13px;
+}
+
+/* ==================== SCHEMA DISPLAY ==================== */
+.schema-display,
+.forecast-display,
+.roi-display,
+.simulation-display {
+  padding: 20px;
+}
+
+.schema-section {
+  margin-top: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.schema-section:last-child {
+  border-bottom: none;
+}
+
+.schema-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #b11226;
+}
+
+/* ==================== INFO GRID ==================== */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+  border-radius: 2px;
+}
+
+.info-item .label {
+  font-weight: 600;
+  color: #808080;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item .value {
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+/* ==================== COLUMNS LIST ==================== */
+.columns-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.column-tag {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 2px;
+  font-size: 11px;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== FORMULA BOX ==================== */
+.formula-box {
+  background: #1a1a1a;
+  padding: 16px;
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  text-align: center;
+  border: 1px solid #b11226;
+  color: #e0e0e0;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* ==================== METRICS ==================== */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+  padding: 20px;
+  border-radius: 2px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: #808080;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: #e0e0e0;
+}
+
+.metric-description {
+  font-size: 11px;
+  color: #4a4a4a;
+  margin-top: 8px;
+}
+
+/* ==================== TABLES ==================== */
+.roi-table {
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.roi-table-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 12px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.roi-table-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 10px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #e0e0e0;
+}
+
+.roi-table-row:last-child {
+  border-bottom: none;
+}
+
+.roi-table-row:nth-child(even) {
+  background: #0f0f0f;
+}
+
+.roi-table-footer {
+  padding: 10px;
+  background: #0f0f0f;
+  text-align: center;
+  font-size: 11px;
+  color: #4a4a4a;
+  font-style: normal;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== DETAILS/COLLAPSIBLE ==================== */
+.json-details {
+  margin-top: 20px;
+}
+
+.json-details summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 2px;
+  user-select: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #808080;
+}
+
+.json-details summary:hover {
+  background: #151515;
+  color: #b11226;
+}
+
+.json-details pre {
+  margin-top: 12px;
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+}
+
+/* ==================== FOOTER ==================== */
+footer {
+  text-align: center;
+  padding: 24px;
+  border-top: 1px solid #1a1a1a;
+  background: #0f0f0f;
+  color: #4a4a4a;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  .App {
+    padding: 0;
+  }
+  
+  header {
+    padding: 20px;
+  }
+  
+  .section {
+    padding: 20px;
+  }
+  
+  .metrics-grid,
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}
