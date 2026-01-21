@@ -243,6 +243,58 @@ async def get_decisions():
     decisions = await db.decisions.find({}, {"_id": 0}).to_list(100)
     return {"status": "success", "decisions": decisions}
 
+@api_router.post("/roi-curve")
+async def generate_roi_curve(request: ForecastRequest):
+    """Generate ROI efficiency curve for dataset."""
+    try:
+        # Get dataset from database
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        file_path = dataset["file_path"]
+        detected_schema = dataset["detected_schema"]
+        
+        # Check if we have required columns
+        if not detected_schema.get("spend") or not detected_schema.get("revenue"):
+            return {
+                "status": "error",
+                "message": "Required columns (spend and revenue) not detected in dataset"
+            }
+        
+        # Load data
+        ingestion = DataIngestion()
+        df = await ingestion.ingest_csv(file_path)
+        
+        # Get column names
+        spend_col = detected_schema["spend"]
+        revenue_col = detected_schema["revenue"]
+        
+        # Fit ROI curve models
+        roi_curve = ROICurve()
+        results = roi_curve.fit_roi_models(df, spend_col, revenue_col)
+        
+        # Store ROI analysis in database
+        roi_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "analysis_type": "roi_curve",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "results": results
+        }
+        await db.roi_analyses.insert_one(roi_doc)
+        
+        return {
+            "status": "success",
+            "analysis_id": roi_doc["id"],
+            **results
+        }
+        
+    except Exception as e:
+        logger.error(f"ROI curve error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
 # Include the router in the main app
 app.include_router(api_router)
 
