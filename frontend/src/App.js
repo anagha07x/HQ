@@ -125,7 +125,69 @@ function App() {
           {uploadResponse && (
             <div className="response-box" data-testid="upload-response">
               <h3>Upload Response:</h3>
-              <pre>{JSON.stringify(uploadResponse, null, 2)}</pre>
+              {uploadResponse.status === 'success' ? (
+                <div className="schema-display">
+                  <div className="success-message">
+                    ✅ {uploadResponse.message}
+                  </div>
+                  
+                  <div className="schema-section">
+                    <h4>Dataset Information</h4>
+                    <div className="info-grid">
+                      <div className="info-item">
+                        <span className="label">Dataset ID:</span>
+                        <span className="value">{uploadResponse.dataset_id}</span>
+                      </div>
+                      <div className="info-item">
+                        <span className="label">Total Rows:</span>
+                        <span className="value">{uploadResponse.rows}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="schema-section">
+                    <h4>All Columns ({uploadResponse.columns.length})</h4>
+                    <div className="columns-list">
+                      {uploadResponse.columns.map((col, idx) => (
+                        <span key={idx} className="column-tag">{col}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="schema-section">
+                    <h4>Auto-Detected Schema</h4>
+                    <div className="detected-schema">
+                      <div className="schema-item">
+                        <span className="schema-label">📅 Date Column:</span>
+                        <span className="schema-value">
+                          {uploadResponse.detected_schema.date || 'Not detected'}
+                        </span>
+                      </div>
+                      <div className="schema-item">
+                        <span className="schema-label">💰 Spend Column:</span>
+                        <span className="schema-value">
+                          {uploadResponse.detected_schema.spend || 'Not detected'}
+                        </span>
+                      </div>
+                      <div className="schema-item">
+                        <span className="schema-label">💵 Revenue Column:</span>
+                        <span className="schema-value">
+                          {uploadResponse.detected_schema.revenue || 'Not detected'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <details className="json-details">
+                    <summary>View Raw JSON</summary>
+                    <pre>{JSON.stringify(uploadResponse, null, 2)}</pre>
+                  </details>
+                </div>
+              ) : (
+                <div className="error-message">
+                  ❌ Error: {uploadResponse.message}
+                </div>
+              )}
             </div>
           )}
         </section>
