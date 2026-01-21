@@ -357,6 +357,48 @@ async def simulate_scenario(request: SimulateRequest):
         logger.error(f"Simulation error: {str(e)}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
+@api_router.post("/confirm-role-mapping")
+async def confirm_role_mapping(request: RoleMappingRequest):
+    """Confirm and save column role mapping for dataset."""
+    try:
+        # Get dataset
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        # Validate role mapping
+        role_mapper = ColumnRoleMapper()
+        validation = role_mapper.validate_role_mapping(request.role_mapping)
+        
+        if not validation["valid"]:
+            return {
+                "status": "error",
+                "message": "Invalid role mapping",
+                "errors": validation["errors"]
+            }
+        
+        # Update dataset with confirmed mapping
+        await db.datasets.update_one(
+            {"id": request.dataset_id},
+            {"$set": {
+                "role_mapping": request.role_mapping,
+                "role_mapping_confirmed": True,
+                "role_validation": validation,
+                "mapping_confirmed_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        return {
+            "status": "success",
+            "message": "Role mapping confirmed and saved",
+            "validation": validation
+        }
+        
+    except Exception as e:
+        logger.error(f"Role mapping error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
 # Include the router in the main app
 app.include_router(api_router)
 
