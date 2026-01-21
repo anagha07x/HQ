@@ -9,13 +9,14 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone
 import aiofiles
 import pandas as pd
 from core.ingestion import DataIngestion
 from core.schema_detector import SchemaDetector
+from core.role_mapper import ColumnRoleMapper
 from models.baseline_model import BaselineModel
 from models.roi_curve import ROICurve
 from models.scenario_simulator import ScenarioSimulator
