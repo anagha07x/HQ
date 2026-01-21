@@ -18,6 +18,7 @@ from core.ingestion import DataIngestion
 from core.schema_detector import SchemaDetector
 from models.baseline_model import BaselineModel
 from models.roi_curve import ROICurve
+from models.scenario_simulator import ScenarioSimulator
 
 
 ROOT_DIR = Path(__file__).parent
