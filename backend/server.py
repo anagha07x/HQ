@@ -17,6 +17,7 @@ import pandas as pd
 from core.ingestion import DataIngestion
 from core.schema_detector import SchemaDetector
 from models.baseline_model import BaselineModel
+from models.roi_curve import ROICurve
 
 
 ROOT_DIR = Path(__file__).parent
