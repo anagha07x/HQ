@@ -170,13 +170,60 @@ async def chat(request: ChatRequest):
 @api_router.post("/forecast")
 async def generate_forecast(request: ForecastRequest):
     """Generate forecast for uploaded dataset."""
-    # Placeholder implementation
-    return {
-        "status": "success",
-        "message": "Forecast generation coming soon!",
-        "dataset_id": request.dataset_id,
-        "horizon": request.horizon
-    }
+    try:
+        # Get dataset from database
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        file_path = dataset["file_path"]
+        detected_schema = dataset["detected_schema"]
+        
+        # Check if we have required columns
+        if not detected_schema.get("spend") or not detected_schema.get("revenue"):
+            return {
+                "status": "error",
+                "message": "Required columns (spend and revenue) not detected in dataset"
+            }
+        
+        # Load data
+        ingestion = DataIngestion()
+        df = await ingestion.ingest_csv(file_path)
+        
+        # Get column names
+        date_col = detected_schema.get("date")
+        spend_col = detected_schema["spend"]
+        revenue_col = detected_schema["revenue"]
+        
+        # Convert date column if detected
+        if date_col:
+            df[date_col] = pd.to_datetime(df[date_col])
+            df = df.sort_values(by=date_col)
+        
+        # Train baseline model
+        baseline_model = BaselineModel()
+        results = baseline_model.train_spend_revenue_model(df, spend_col, revenue_col)
+        
+        # Store forecast in database
+        forecast_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "model_type": "baseline_regression",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "results": results
+        }
+        await db.forecasts.insert_one(forecast_doc)
+        
+        return {
+            "status": "success",
+            "forecast_id": forecast_doc["id"],
+            **results
+        }
+        
+    except Exception as e:
+        logger.error(f"Forecast error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
 
 @api_router.post("/decision")
 async def log_decision(decision: dict):
