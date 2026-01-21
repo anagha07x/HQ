@@ -9,6 +9,9 @@ function App() {
   const [decisions, setDecisions] = useState(null);
   const [forecastResponse, setForecastResponse] = useState(null);
   const [roiResponse, setRoiResponse] = useState(null);
+  const [simulationResponse, setSimulationResponse] = useState(null);
+  const [currentSpend, setCurrentSpend] = useState('');
+  const [proposedSpend, setProposedSpend] = useState('');
   const [loading, setLoading] = useState(false);
 
   const API_URL = process.env.REACT_APP_BACKEND_URL;
