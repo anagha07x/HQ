@@ -85,6 +85,11 @@ class ForecastRequest(BaseModel):
     dataset_id: str
     horizon: int = 30
 
+class SimulateRequest(BaseModel):
+    dataset_id: str
+    current_spend: float
+    proposed_spend: float
+
 @api_router.get("/health")
 async def health_check():
     """Health check endpoint."""
