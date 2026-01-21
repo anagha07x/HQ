@@ -91,6 +91,10 @@ class SimulateRequest(BaseModel):
     current_spend: float
     proposed_spend: float
 
+class RoleMappingRequest(BaseModel):
+    dataset_id: str
+    role_mapping: List[Dict[str, str]]  # [{"name": "spend", "role": "ACTION"}, ...]
+
 @api_router.get("/health")
 async def health_check():
     """Health check endpoint."""
