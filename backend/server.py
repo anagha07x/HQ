@@ -114,15 +114,15 @@ async def upload_dataset(file: UploadFile = File(...)):
             content = await file.read()
             await out_file.write(content)
         
-        # Process CSV and detect schema
+        # Process CSV and detect roles
         ingestion = DataIngestion()
-        schema_detector = SchemaDetector()
+        role_mapper = ColumnRoleMapper()
         
         # Load CSV
         df = await ingestion.ingest_csv(str(file_path))
         
-        # Detect schema
-        schema = schema_detector.detect_schema(df)
+        # Detect column roles
+        column_roles = role_mapper.detect_roles(df)
         
         # Store metadata in database
         file_doc = {
@@ -131,13 +131,9 @@ async def upload_dataset(file: UploadFile = File(...)):
             "file_path": str(file_path),
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
             "size": len(content),
-            "rows": schema["rows"],
-            "columns": schema["columns"],
-            "detected_schema": {
-                "date": schema["date_column"],
-                "spend": schema["spend_column"],
-                "revenue": schema["revenue_column"]
-            }
+            "rows": len(df),
+            "column_roles": column_roles,
+            "role_mapping_confirmed": False
         }
         await db.datasets.insert_one(file_doc)
         
@@ -146,13 +142,8 @@ async def upload_dataset(file: UploadFile = File(...)):
             "status": "success",
             "message": f"File '{file.filename}' uploaded and analyzed successfully",
             "dataset_id": file_doc["id"],
-            "columns": schema["columns"],
-            "detected_schema": {
-                "date": schema["date_column"],
-                "spend": schema["spend_column"],
-                "revenue": schema["revenue_column"]
-            },
-            "rows": schema["rows"]
+            "rows": len(df),
+            "column_roles": column_roles
         }
     except Exception as e:
         logger.error(f"Upload error: {str(e)}", exc_info=True)
