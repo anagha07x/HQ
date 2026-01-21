@@ -301,6 +301,66 @@ async def generate_roi_curve(request: ForecastRequest):
         logger.error(f"ROI curve error: {str(e)}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
+@api_router.post("/simulate-scenario")
+async def simulate_scenario(request: SimulateRequest):
+    """Simulate what-if scenario with different spend levels."""
+    try:
+        # Get dataset from database
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        # Get ROI analysis for this dataset
+        roi_analysis = await db.roi_analyses.find_one(
+            {"dataset_id": request.dataset_id}, 
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not roi_analysis:
+            return {
+                "status": "error",
+                "message": "ROI analysis not found. Please generate ROI curve first."
+            }
+        
+        # Initialize simulator with ROI model
+        simulator = ScenarioSimulator()
+        simulator.set_roi_model(
+            roi_analysis["results"]["best_fit"],
+            roi_analysis["results"]["parameters"]
+        )
+        
+        # Run simulation
+        results = simulator.simulate_what_if(
+            request.current_spend,
+            request.proposed_spend
+        )
+        
+        # Store simulation in database
+        simulation_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "simulation_type": "what_if",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "inputs": {
+                "current_spend": request.current_spend,
+                "proposed_spend": request.proposed_spend
+            },
+            "results": results
+        }
+        await db.simulations.insert_one(simulation_doc)
+        
+        return {
+            "status": "success",
+            "simulation_id": simulation_doc["id"],
+            **results
+        }
+        
+    except Exception as e:
+        logger.error(f"Simulation error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
 # Include the router in the main app
 app.include_router(api_router)
 
