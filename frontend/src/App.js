@@ -347,6 +347,133 @@ function App() {
           </section>
         )}
 
+        {/* ROI Efficiency Curve */}
+        {uploadResponse && uploadResponse.status === 'success' && (
+          <section className="section">
+            <h2>ROI Efficiency Curve</h2>
+            <p className="section-description">
+              Analyze diminishing returns and find optimal spend levels
+            </p>
+            <button 
+              onClick={generateRoiCurve} 
+              disabled={loading}
+              data-testid="generate-roi-button"
+            >
+              {loading ? 'Analyzing...' : 'Generate ROI Curve'}
+            </button>
+            
+            {roiResponse && (
+              <div className="response-box" data-testid="roi-response">
+                {roiResponse.status === 'success' ? (
+                  <div className="roi-display">
+                    <div className="success-message">
+                      ✅ ROI efficiency analysis complete
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Best Fit Model</h4>
+                      <div className="model-type-box">
+                        {roiResponse.best_fit === 'exponential' ? (
+                          <>
+                            <div className="model-name">Exponential Diminishing Returns</div>
+                            <div className="model-formula">
+                              Revenue = {roiResponse.parameters.a.toFixed(2)} × 
+                              (1 - e<sup>-{roiResponse.parameters.b.toFixed(4)} × spend</sup>)
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="model-name">Logarithmic Growth</div>
+                            <div className="model-formula">
+                              Revenue = {roiResponse.parameters.a.toFixed(2)} × 
+                              log(spend + 1) + {roiResponse.parameters.b.toFixed(2)}
+                            </div>
+                          </>
+                        )}
+                        <div className="model-fit">
+                          R² Score: {(roiResponse.r2_score * 100).toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Key Spending Thresholds</h4>
+                      <div className="roi-metrics-grid">
+                        <div className="roi-metric-card optimal">
+                          <div className="roi-icon">🎯</div>
+                          <div className="roi-label">Optimal Spend</div>
+                          <div className="roi-value">${roiResponse.optimal_spend.toFixed(2)}</div>
+                          <div className="roi-description">
+                            Best balance of efficiency and scale
+                          </div>
+                        </div>
+                        <div className="roi-metric-card saturation">
+                          <div className="roi-icon">📊</div>
+                          <div className="roi-label">Saturation Point</div>
+                          <div className="roi-value">${roiResponse.saturation_spend.toFixed(2)}</div>
+                          <div className="roi-description">
+                            95% of maximum revenue achieved
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>ROI Interpretation</h4>
+                      <div className="interpretation-box">
+                        <p>
+                          <strong>Optimal Spend (${roiResponse.optimal_spend.toFixed(0)}):</strong> 
+                          {' '}This is where you get the best return on investment. 
+                          Spending below this level leaves money on the table.
+                        </p>
+                        <p>
+                          <strong>Saturation Point (${roiResponse.saturation_spend.toFixed(0)}):</strong> 
+                          {' '}Beyond this spend level, returns diminish significantly. 
+                          Additional spending yields minimal revenue gains.
+                        </p>
+                        <p>
+                          <strong>Current Strategy:</strong>
+                          {' '}{roiResponse.optimal_spend < roiResponse.saturation_spend * 0.5 
+                            ? 'You have significant room to scale spending profitably.'
+                            : 'You are near optimal efficiency. Focus on maintaining quality.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="schema-section">
+                      <h4>Marginal ROI Sample Points</h4>
+                      <div className="roi-table">
+                        <div className="roi-table-header">
+                          <div>Spend</div>
+                          <div>Marginal ROI</div>
+                        </div>
+                        {roiResponse.roi_curve.slice(0, 5).map((point, idx) => (
+                          <div key={idx} className="roi-table-row">
+                            <div>${point.spend.toFixed(0)}</div>
+                            <div>{point.marginal_roi.toFixed(2)}x</div>
+                          </div>
+                        ))}
+                        <div className="roi-table-footer">
+                          Showing 5 of {roiResponse.roi_curve.length} points
+                        </div>
+                      </div>
+                    </div>
+
+                    <details className="json-details">
+                      <summary>View Raw JSON</summary>
+                      <pre>{JSON.stringify(roiResponse, null, 2)}</pre>
+                    </details>
+                  </div>
+                ) : (
+                  <div className="error-message">
+                    ❌ Error: {roiResponse.message}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Chat Interface */}
         <section className="section">
           <h2>Chat with AI Agent</h2>
