@@ -1,0 +1,28 @@
+# Decision Ledger Requirements
+
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.12
+python-dotenv==1.0.1
+pydantic==2.9.0
+
+# Database
+motor==3.6.0
+pymongo==4.10.1
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.5.1
+
+# Forecasting
+prophet==1.1.6
+statsmodels==0.14.4
+
+# LLM Integration
+emergentintegrations
+
+# Utilities
+aiofiles==24.1.0
+python-dateutil==2.9.0
