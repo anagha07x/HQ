@@ -67,6 +67,102 @@ async def get_status_checks():
     
     return status_checks
 
+# Decision Ledger endpoints
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = "default"
+
+class ForecastRequest(BaseModel):
+    dataset_id: str
+    horizon: int = 30
+
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "service": "Decision Ledger"}
+
+@api_router.post("/upload")
+async def upload_dataset(file: UploadFile = File(...)):
+    """Upload CSV dataset for analysis."""
+    try:
+        # Create uploads directory if it doesn't exist
+        upload_dir = Path("/app/decision-ledger/data/uploads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file
+        file_path = upload_dir / file.filename
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            content = await file.read()
+            await out_file.write(content)
+        
+        # Store metadata in database
+        file_doc = {
+            "id": str(uuid.uuid4()),
+            "filename": file.filename,
+            "file_path": str(file_path),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "size": len(content)
+        }
+        await db.datasets.insert_one(file_doc)
+        
+        return {
+            "status": "success",
+            "message": f"File '{file.filename}' uploaded successfully",
+            "dataset_id": file_doc["id"],
+            "size": file_doc["size"]
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@api_router.post("/chat")
+async def chat(request: ChatRequest):
+    """Chat endpoint for decision reasoning."""
+    # Placeholder implementation - just echo for now
+    chat_response = {
+        "status": "success",
+        "response": f"Received your message: '{request.message}'. Full LLM integration coming soon!",
+        "session_id": request.session_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Store chat message
+    await db.chat_messages.insert_one({
+        "session_id": request.session_id,
+        "user_message": request.message,
+        "bot_response": chat_response["response"],
+        "timestamp": chat_response["timestamp"]
+    })
+    
+    return chat_response
+
+@api_router.post("/forecast")
+async def generate_forecast(request: ForecastRequest):
+    """Generate forecast for uploaded dataset."""
+    # Placeholder implementation
+    return {
+        "status": "success",
+        "message": "Forecast generation coming soon!",
+        "dataset_id": request.dataset_id,
+        "horizon": request.horizon
+    }
+
+@api_router.post("/decision")
+async def log_decision(decision: dict):
+    """Log a decision to the ledger."""
+    decision_doc = {
+        "id": str(uuid.uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **decision
+    }
+    await db.decisions.insert_one(decision_doc)
+    return {"status": "success", "decision_id": decision_doc["id"]}
+
+@api_router.get("/decisions")
+async def get_decisions():
+    """Retrieve all logged decisions."""
+    decisions = await db.decisions.find({}, {"_id": 0}).to_list(100)
+    return {"status": "success", "decisions": decisions}
+
 # Include the router in the main app
 app.include_router(api_router)
 
