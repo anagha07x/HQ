@@ -427,3 +427,121 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==================== ROLE MAPPING ==================== */
+.role-mapping-container {
+  margin-top: 20px;
+}
+
+.role-table {
+  background: #0b0b0b;
+  border: 1px solid #1a1a1a;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.role-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1.5fr;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 12px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  gap: 12px;
+}
+
+.role-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1.5fr;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  font-size: 12px;
+  color: #e0e0e0;
+  gap: 12px;
+  align-items: center;
+}
+
+.role-table-row:last-child {
+  border-bottom: none;
+}
+
+.role-table-row:nth-child(even) {
+  background: #0f0f0f;
+}
+
+.role-col-name {
+  font-family: 'Courier New', monospace;
+  color: #e0e0e0;
+  font-weight: 600;
+}
+
+.role-detected {
+  color: #4ade80;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.role-confidence {
+  font-family: 'Courier New', monospace;
+  color: #808080;
+}
+
+.role-select select {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #e0e0e0;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.role-select select:focus {
+  outline: none;
+  border-color: #b11226;
+  background: #151515;
+}
+
+.role-select select:hover {
+  border-color: #b11226;
+}
+
+.confirm-mapping-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: #b11226;
+  border: 1px solid #b11226;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.confirm-mapping-btn:hover:not(:disabled) {
+  background: #8a0d1c;
+  border-color: #8a0d1c;
+}
+
+@media (max-width: 768px) {
+  .role-table-header,
+  .role-table-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .role-table-header > div,
+  .role-table-row > div {
+    padding: 4px 0;
+  }
+}
