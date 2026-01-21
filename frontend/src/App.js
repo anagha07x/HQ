@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import './App.css';
+import './ChanksHQ.css';
 
 function App() {
   const [file, setFile] = useState(null);
   const [uploadResponse, setUploadResponse] = useState(null);
+  const [roleMapping, setRoleMapping] = useState([]);
+  const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [chatResponse, setChatResponse] = useState(null);
   const [decisions, setDecisions] = useState(null);
@@ -18,6 +20,9 @@ function App() {
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
+    setUploadResponse(null);
+    setMappingConfirmed(false);
+    setRoleMapping([]);
   };
 
   const handleUpload = async () => {
@@ -37,8 +42,49 @@ function App() {
       });
       const data = await response.json();
       setUploadResponse(data);
+      
+      // Initialize role mapping from detected roles
+      if (data.status === 'success' && data.column_roles) {
+        setRoleMapping(data.column_roles.map(col => ({
+          name: col.name,
+          role: col.detected_role
+        })));
+      }
     } catch (error) {
       setUploadResponse({ status: 'error', message: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleChange = (columnName, newRole) => {
+    setRoleMapping(prev => 
+      prev.map(col => 
+        col.name === columnName ? { ...col, role: newRole } : col
+      )
+    );
+  };
+
+  const confirmRoleMapping = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/confirm-role-mapping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_id: uploadResponse.dataset_id,
+          role_mapping: roleMapping
+        })
+      });
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        setMappingConfirmed(true);
+      } else {
+        alert(`Validation failed: ${data.errors?.join(', ')}`);
+      }
+    } catch (error) {
+      alert('Error confirming mapping: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -54,9 +100,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: chatMessage,
           session_id: 'session_' + Date.now(),
@@ -86,8 +130,12 @@ function App() {
   };
 
   const generateForecast = async () => {
-    if (!uploadResponse || !uploadResponse.dataset_id) {
+    if (!uploadResponse?.dataset_id) {
       alert('Please upload a dataset first');
+      return;
+    }
+    if (!mappingConfirmed) {
+      alert('Please confirm column role mapping first');
       return;
     }
 
@@ -95,9 +143,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/forecast`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataset_id: uploadResponse.dataset_id,
           horizon: 30,
@@ -113,8 +159,12 @@ function App() {
   };
 
   const generateRoiCurve = async () => {
-    if (!uploadResponse || !uploadResponse.dataset_id) {
+    if (!uploadResponse?.dataset_id) {
       alert('Please upload a dataset first');
+      return;
+    }
+    if (!mappingConfirmed) {
+      alert('Please confirm column role mapping first');
       return;
     }
 
@@ -122,9 +172,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/roi-curve`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataset_id: uploadResponse.dataset_id,
           horizon: 30,
@@ -140,7 +188,7 @@ function App() {
   };
 
   const runSimulation = async () => {
-    if (!uploadResponse || !uploadResponse.dataset_id) {
+    if (!uploadResponse?.dataset_id) {
       alert('Please upload a dataset first');
       return;
     }
@@ -154,9 +202,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/api/simulate-scenario`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataset_id: uploadResponse.dataset_id,
           current_spend: parseFloat(currentSpend),
@@ -185,12 +231,12 @@ function App() {
   return (
     <div className="App">
       <header>
-        <h1>Decision Ledger</h1>
-        <p>AI-powered decision tracking and forecasting system</p>
+        <h1>ChanksHQ</h1>
+        <p>Decision Intelligence Platform</p>
       </header>
 
       <main>
-        {/* Health Check */}
+        {/* System Status */}
         <section className="section">
           <h2>System Status</h2>
           <button onClick={checkHealth}>Check Health</button>
@@ -214,78 +260,100 @@ function App() {
               {loading ? 'Uploading...' : 'Upload File'}
             </button>
           </div>
-          {uploadResponse && (
+          
+          {uploadResponse && uploadResponse.status === 'success' && (
             <div className="response-box" data-testid="upload-response">
-              <h3>Upload Response:</h3>
-              {uploadResponse.status === 'success' ? (
-                <div className="schema-display">
-                  <div className="success-message">
-                    ✅ {uploadResponse.message}
-                  </div>
-                  
-                  <div className="schema-section">
-                    <h4>Dataset Information</h4>
-                    <div className="info-grid">
-                      <div className="info-item">
-                        <span className="label">Dataset ID:</span>
-                        <span className="value">{uploadResponse.dataset_id}</span>
-                      </div>
-                      <div className="info-item">
-                        <span className="label">Total Rows:</span>
-                        <span className="value">{uploadResponse.rows}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="schema-section">
-                    <h4>All Columns ({uploadResponse.columns.length})</h4>
-                    <div className="columns-list">
-                      {uploadResponse.columns.map((col, idx) => (
-                        <span key={idx} className="column-tag">{col}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="schema-section">
-                    <h4>Auto-Detected Schema</h4>
-                    <div className="detected-schema">
-                      <div className="schema-item">
-                        <span className="schema-label">📅 Date Column:</span>
-                        <span className="schema-value">
-                          {uploadResponse.detected_schema.date || 'Not detected'}
-                        </span>
-                      </div>
-                      <div className="schema-item">
-                        <span className="schema-label">💰 Spend Column:</span>
-                        <span className="schema-value">
-                          {uploadResponse.detected_schema.spend || 'Not detected'}
-                        </span>
-                      </div>
-                      <div className="schema-item">
-                        <span className="schema-label">💵 Revenue Column:</span>
-                        <span className="schema-value">
-                          {uploadResponse.detected_schema.revenue || 'Not detected'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <details className="json-details">
-                    <summary>View Raw JSON</summary>
-                    <pre>{JSON.stringify(uploadResponse, null, 2)}</pre>
-                  </details>
+              <h3>Upload Response</h3>
+              <div className="schema-display">
+                <div className="success-message">
+                  ✓ {uploadResponse.message}
                 </div>
-              ) : (
-                <div className="error-message">
-                  ❌ Error: {uploadResponse.message}
+                
+                <div className="schema-section">
+                  <h4>Dataset Information</h4>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <span className="label">Dataset ID</span>
+                      <span className="value">{uploadResponse.dataset_id}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">Total Rows</span>
+                      <span className="value">{uploadResponse.rows}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+            </div>
+          )}
+          
+          {uploadResponse && uploadResponse.status === 'error' && (
+            <div className="error-message">
+              ✗ Error: {uploadResponse.message}
             </div>
           )}
         </section>
 
-        {/* Baseline Forecast */}
-        {uploadResponse && uploadResponse.status === 'success' && (
+        {/* Column Role Mapping */}
+        {uploadResponse?.status === 'success' && uploadResponse.column_roles && !mappingConfirmed && (
+          <section className="section">
+            <h2>Column Role Mapping</h2>
+            <p className="section-description">
+              Review and adjust column roles. Exactly one TIME and OUTCOME required, at least one ACTION.
+            </p>
+            
+            <div className="role-mapping-container">
+              <div className="role-table">
+                <div className="role-table-header">
+                  <div>Column Name</div>
+                  <div>Detected Role</div>
+                  <div>Confidence</div>
+                  <div>Assign Role</div>
+                </div>
+                
+                {(uploadResponse.column_roles || []).map((col, idx) => (
+                  <div key={idx} className="role-table-row">
+                    <div className="role-col-name">{col.name}</div>
+                    <div className="role-detected">{col.detected_role}</div>
+                    <div className="role-confidence">{(col.confidence * 100).toFixed(0)}%</div>
+                    <div className="role-select">
+                      <select 
+                        value={roleMapping.find(r => r.name === col.name)?.role || col.detected_role}
+                        onChange={(e) => handleRoleChange(col.name, e.target.value)}
+                      >
+                        <option value="TIME">TIME</option>
+                        <option value="ACTION">ACTION</option>
+                        <option value="OUTCOME">OUTCOME</option>
+                        <option value="METRIC">METRIC</option>
+                        <option value="DIMENSION">DIMENSION</option>
+                        <option value="IGNORE">IGNORE</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <button 
+                onClick={confirmRoleMapping}
+                disabled={loading}
+                className="confirm-mapping-btn"
+                data-testid="confirm-mapping-button"
+              >
+                {loading ? 'Confirming...' : 'Confirm Mapping'}
+              </button>
+            </div>
+          </section>
+        )}
+
+        {mappingConfirmed && (
+          <section className="section">
+            <div className="success-message">
+              ✓ Column role mapping confirmed. You can now generate forecasts.
+            </div>
+          </section>
+        )}
+
+        {/* Baseline Forecast - Only show if mapping confirmed */}
+        {mappingConfirmed && (
           <section className="section">
             <h2>Baseline Forecast</h2>
             <p className="section-description">
@@ -299,92 +367,63 @@ function App() {
               {loading ? 'Generating...' : 'Generate Baseline Forecast'}
             </button>
             
-            {forecastResponse && (
+            {forecastResponse && forecastResponse.status === 'success' && (
               <div className="response-box" data-testid="forecast-response">
-                {forecastResponse.status === 'success' ? (
-                  <div className="forecast-display">
-                    <div className="success-message">
-                      ✅ Baseline model trained successfully
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Model Formula</h4>
-                      <div className="formula-box">
-                        {forecastResponse.formula}
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Model Performance</h4>
-                      <div className="metrics-grid">
-                        <div className="metric-card">
-                          <span className="metric-label">R² Score</span>
-                          <span className="metric-value">
-                            {(forecastResponse.metrics.r2 * 100).toFixed(2)}%
-                          </span>
-                          <span className="metric-description">
-                            Model explains {(forecastResponse.metrics.r2 * 100).toFixed(1)}% of variance
-                          </span>
-                        </div>
-                        <div className="metric-card">
-                          <span className="metric-label">MAPE Error</span>
-                          <span className="metric-value">
-                            {forecastResponse.metrics.mape.toFixed(2)}%
-                          </span>
-                          <span className="metric-description">
-                            Average prediction error
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Latest Month Prediction</h4>
-                      <div className="prediction-grid">
-                        <div className="prediction-item">
-                          <span className="pred-label">Spend:</span>
-                          <span className="pred-value">
-                            ${forecastResponse.latest_month.spend.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="prediction-item">
-                          <span className="pred-label">Actual Revenue:</span>
-                          <span className="pred-value actual">
-                            ${forecastResponse.latest_month.actual_revenue.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="prediction-item">
-                          <span className="pred-label">Predicted Revenue:</span>
-                          <span className="pred-value predicted">
-                            ${forecastResponse.latest_month.predicted_revenue.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="prediction-item">
-                          <span className="pred-label">Residual (Error):</span>
-                          <span className={`pred-value ${forecastResponse.latest_month.residual > 0 ? 'positive' : 'negative'}`}>
-                            ${forecastResponse.latest_month.residual.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <details className="json-details">
-                      <summary>View Raw JSON</summary>
-                      <pre>{JSON.stringify(forecastResponse, null, 2)}</pre>
-                    </details>
+                <h3>Forecast Results</h3>
+                <div className="forecast-display">
+                  <div className="success-message">
+                    ✓ Baseline model trained successfully
                   </div>
-                ) : (
-                  <div className="error-message">
-                    ❌ Error: {forecastResponse.message}
+
+                  <div className="schema-section">
+                    <h4>Model Formula</h4>
+                    <div className="formula-box">
+                      {forecastResponse.formula}
+                    </div>
                   </div>
-                )}
+
+                  <div className="schema-section">
+                    <h4>Model Performance</h4>
+                    <div className="metrics-grid">
+                      <div className="metric-card">
+                        <div className="metric-label">R² Score</div>
+                        <div className="metric-value">
+                          {(forecastResponse.metrics.r2 * 100).toFixed(2)}%
+                        </div>
+                        <div className="metric-description">
+                          Model explains {(forecastResponse.metrics.r2 * 100).toFixed(1)}% of variance
+                        </div>
+                      </div>
+                      <div className="metric-card">
+                        <div className="metric-label">MAPE Error</div>
+                        <div className="metric-value">
+                          {forecastResponse.metrics.mape.toFixed(2)}%
+                        </div>
+                        <div className="metric-description">
+                          Average prediction error
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <details className="json-details">
+                    <summary>View Raw JSON</summary>
+                    <pre>{JSON.stringify(forecastResponse, null, 2)}</pre>
+                  </details>
+                </div>
+              </div>
+            )}
+            
+            {forecastResponse && forecastResponse.status === 'error' && (
+              <div className="error-message">
+                ✗ Error: {forecastResponse.message}
               </div>
             )}
           </section>
         )}
 
-        {/* ROI Efficiency Curve */}
-        {uploadResponse && uploadResponse.status === 'success' && (
+        {/* ROI Efficiency Curve - Only show if mapping confirmed */}
+        {mappingConfirmed && (
           <section className="section">
             <h2>ROI Efficiency Curve</h2>
             <p className="section-description">
@@ -398,329 +437,121 @@ function App() {
               {loading ? 'Analyzing...' : 'Generate ROI Curve'}
             </button>
             
-            {roiResponse && (
+            {roiResponse && roiResponse.status === 'success' && (
               <div className="response-box" data-testid="roi-response">
-                {roiResponse.status === 'success' ? (
-                  <div className="roi-display">
-                    <div className="success-message">
-                      ✅ ROI efficiency analysis complete
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Best Fit Model</h4>
-                      <div className="model-type-box">
-                        {roiResponse.best_fit === 'exponential' ? (
-                          <>
-                            <div className="model-name">Exponential Diminishing Returns</div>
-                            <div className="model-formula">
-                              Revenue = {roiResponse.parameters.a.toFixed(2)} × 
-                              (1 - e<sup>-{roiResponse.parameters.b.toFixed(4)} × spend</sup>)
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="model-name">Logarithmic Growth</div>
-                            <div className="model-formula">
-                              Revenue = {roiResponse.parameters.a.toFixed(2)} × 
-                              log(spend + 1) + {roiResponse.parameters.b.toFixed(2)}
-                            </div>
-                          </>
-                        )}
-                        <div className="model-fit">
-                          R² Score: {(roiResponse.r2_score * 100).toFixed(2)}%
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Key Spending Thresholds</h4>
-                      <div className="roi-metrics-grid">
-                        <div className="roi-metric-card optimal">
-                          <div className="roi-icon">🎯</div>
-                          <div className="roi-label">Optimal Spend</div>
-                          <div className="roi-value">${roiResponse.optimal_spend.toFixed(2)}</div>
-                          <div className="roi-description">
-                            Best balance of efficiency and scale
-                          </div>
-                        </div>
-                        <div className="roi-metric-card saturation">
-                          <div className="roi-icon">📊</div>
-                          <div className="roi-label">Saturation Point</div>
-                          <div className="roi-value">${roiResponse.saturation_spend.toFixed(2)}</div>
-                          <div className="roi-description">
-                            95% of maximum revenue achieved
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>ROI Interpretation</h4>
-                      <div className="interpretation-box">
-                        <p>
-                          <strong>Optimal Spend (${roiResponse.optimal_spend.toFixed(0)}):</strong> 
-                          {' '}This is where you get the best return on investment. 
-                          Spending below this level leaves money on the table.
-                        </p>
-                        <p>
-                          <strong>Saturation Point (${roiResponse.saturation_spend.toFixed(0)}):</strong> 
-                          {' '}Beyond this spend level, returns diminish significantly. 
-                          Additional spending yields minimal revenue gains.
-                        </p>
-                        <p>
-                          <strong>Current Strategy:</strong>
-                          {' '}{roiResponse.optimal_spend < roiResponse.saturation_spend * 0.5 
-                            ? 'You have significant room to scale spending profitably.'
-                            : 'You are near optimal efficiency. Focus on maintaining quality.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Marginal ROI Sample Points</h4>
-                      <div className="roi-table">
-                        <div className="roi-table-header">
-                          <div>Spend</div>
-                          <div>Marginal ROI</div>
-                        </div>
-                        {roiResponse.roi_curve.slice(0, 5).map((point, idx) => (
-                          <div key={idx} className="roi-table-row">
-                            <div>${point.spend.toFixed(0)}</div>
-                            <div>{point.marginal_roi.toFixed(2)}x</div>
-                          </div>
-                        ))}
-                        <div className="roi-table-footer">
-                          Showing 5 of {roiResponse.roi_curve.length} points
-                        </div>
-                      </div>
-                    </div>
-
-                    <details className="json-details">
-                      <summary>View Raw JSON</summary>
-                      <pre>{JSON.stringify(roiResponse, null, 2)}</pre>
-                    </details>
+                <h3>ROI Analysis</h3>
+                <div className="roi-display">
+                  <div className="success-message">
+                    ✓ ROI efficiency analysis complete
                   </div>
-                ) : (
-                  <div className="error-message">
-                    ❌ Error: {roiResponse.message}
+
+                  <div className="schema-section">
+                    <h4>Optimal Spend</h4>
+                    <div className="info-item">
+                      <span className="label">Recommended Spend Level</span>
+                      <span className="value">${roiResponse.optimal_spend.toFixed(2)}</span>
+                    </div>
                   </div>
-                )}
+
+                  <div className="schema-section">
+                    <h4>Saturation Point</h4>
+                    <div className="info-item">
+                      <span className="label">Maximum Efficient Spend</span>
+                      <span className="value">${roiResponse.saturation_spend.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <details className="json-details">
+                    <summary>View Raw JSON</summary>
+                    <pre>{JSON.stringify(roiResponse, null, 2)}</pre>
+                  </details>
+                </div>
+              </div>
+            )}
+            
+            {roiResponse && roiResponse.status === 'error' && (
+              <div className="error-message">
+                ✗ Error: {roiResponse.message}
               </div>
             )}
           </section>
         )}
 
-        {/* What-If Simulator */}
-        {roiResponse && roiResponse.status === 'success' && (
+        {/* What-If Simulator - Only show if ROI generated */}
+        {roiResponse?.status === 'success' && (
           <section className="section">
             <h2>What-If Scenario Simulator</h2>
             <p className="section-description">
               Compare expected outcomes at different spend levels
             </p>
             
-            <div className="simulator-inputs">
-              <div className="input-group">
-                <label htmlFor="current-spend">Current Spend ($)</label>
-                <input
-                  id="current-spend"
-                  type="number"
-                  value={currentSpend}
-                  onChange={(e) => setCurrentSpend(e.target.value)}
-                  placeholder="e.g., 1500"
-                  data-testid="current-spend-input"
-                />
-              </div>
-              <div className="input-group">
-                <label htmlFor="proposed-spend">Proposed Spend ($)</label>
-                <input
-                  id="proposed-spend"
-                  type="number"
-                  value={proposedSpend}
-                  onChange={(e) => setProposedSpend(e.target.value)}
-                  placeholder="e.g., 2000"
-                  data-testid="proposed-spend-input"
-                />
-              </div>
+            <div className="form-group">
+              <input
+                type="number"
+                value={currentSpend}
+                onChange={(e) => setCurrentSpend(e.target.value)}
+                placeholder="Current Spend"
+                data-testid="current-spend-input"
+              />
+              <input
+                type="number"
+                value={proposedSpend}
+                onChange={(e) => setProposedSpend(e.target.value)}
+                placeholder="Proposed Spend"
+                data-testid="proposed-spend-input"
+              />
               <button 
                 onClick={runSimulation} 
                 disabled={loading}
                 data-testid="run-simulation-button"
-                className="simulate-button"
               >
                 {loading ? 'Simulating...' : 'Run Simulation'}
               </button>
             </div>
             
-            {simulationResponse && (
+            {simulationResponse && simulationResponse.status === 'success' && (
               <div className="response-box" data-testid="simulation-response">
-                {simulationResponse.status === 'success' ? (
-                  <div className="simulation-display">
-                    <div className="success-message">
-                      ✅ Simulation complete
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Scenario Comparison</h4>
-                      <div className="comparison-grid">
-                        <div className="scenario-card current">
-                          <div className="scenario-header">Current Scenario</div>
-                          <div className="scenario-details">
-                            <div className="scenario-row">
-                              <span className="scenario-label">Spend:</span>
-                              <span className="scenario-value">${simulationResponse.current.spend.toFixed(2)}</span>
-                            </div>
-                            <div className="scenario-row">
-                              <span className="scenario-label">Est. Revenue:</span>
-                              <span className="scenario-value highlight">${simulationResponse.current.estimated_revenue.toFixed(2)}</span>
-                            </div>
-                            <div className="scenario-row">
-                              <span className="scenario-label">Marginal ROI:</span>
-                              <span className="scenario-value">{simulationResponse.current.marginal_roi.toFixed(2)}x</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="arrow-container">
-                          <div className="arrow">→</div>
-                        </div>
-
-                        <div className="scenario-card proposed">
-                          <div className="scenario-header">Proposed Scenario</div>
-                          <div className="scenario-details">
-                            <div className="scenario-row">
-                              <span className="scenario-label">Spend:</span>
-                              <span className="scenario-value">${simulationResponse.proposed.spend.toFixed(2)}</span>
-                            </div>
-                            <div className="scenario-row">
-                              <span className="scenario-label">Est. Revenue:</span>
-                              <span className="scenario-value highlight">${simulationResponse.proposed.estimated_revenue.toFixed(2)}</span>
-                            </div>
-                            <div className="scenario-row">
-                              <span className="scenario-label">Marginal ROI:</span>
-                              <span className="scenario-value">{simulationResponse.proposed.marginal_roi.toFixed(2)}x</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Impact Analysis</h4>
-                      <div className="impact-grid">
-                        <div className="impact-card">
-                          <div className="impact-icon">💰</div>
-                          <div className="impact-label">Spend Change</div>
-                          <div className={`impact-value ${simulationResponse.impact.delta_spend >= 0 ? 'positive' : 'negative'}`}>
-                            {simulationResponse.impact.delta_spend >= 0 ? '+' : ''}${simulationResponse.impact.delta_spend.toFixed(2)}
-                          </div>
-                        </div>
-                        <div className="impact-card">
-                          <div className="impact-icon">📈</div>
-                          <div className="impact-label">Revenue Change</div>
-                          <div className={`impact-value ${simulationResponse.impact.delta_revenue >= 0 ? 'positive' : 'negative'}`}>
-                            {simulationResponse.impact.delta_revenue >= 0 ? '+' : ''}${simulationResponse.impact.delta_revenue.toFixed(2)}
-                          </div>
-                        </div>
-                        <div className="impact-card">
-                          <div className="impact-icon">🎯</div>
-                          <div className="impact-label">Incremental ROI</div>
-                          <div className="impact-value">
-                            {simulationResponse.impact.incremental_roi.toFixed(2)}x
-                          </div>
-                        </div>
-                        <div className="impact-card">
-                          <div className="impact-icon">📊</div>
-                          <div className="impact-label">Efficiency</div>
-                          <div className={`impact-value ${simulationResponse.impact.efficiency_change === 'increase' ? 'positive' : simulationResponse.impact.efficiency_change === 'decrease' ? 'negative' : ''}`}>
-                            {simulationResponse.impact.efficiency_change}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="schema-section">
-                      <h4>Recommendation</h4>
-                      <div className={`recommendation-box ${simulationResponse.recommendation}`}>
-                        <div className="recommendation-badge">
-                          {simulationResponse.recommendation === 'scale' && '🚀 SCALE'}
-                          {simulationResponse.recommendation === 'hold' && '⏸️ HOLD'}
-                          {simulationResponse.recommendation === 'reduce' && '⬇️ REDUCE'}
-                        </div>
-                        <div className="recommendation-text">
-                          {simulationResponse.recommendation === 'scale' && 
-                            'Strong opportunity: Incremental ROI justifies increased investment.'}
-                          {simulationResponse.recommendation === 'hold' && 
-                            'Maintain current spend: Limited upside from proposed change.'}
-                          {simulationResponse.recommendation === 'reduce' && 
-                            'Consider reducing: Better efficiency at lower spend levels.'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <details className="json-details">
-                      <summary>View Raw JSON</summary>
-                      <pre>{JSON.stringify(simulationResponse, null, 2)}</pre>
-                    </details>
+                <h3>Simulation Results</h3>
+                <div className="simulation-display">
+                  <div className="success-message">
+                    ✓ Simulation complete
                   </div>
-                ) : (
-                  <div className="error-message">
-                    ❌ Error: {simulationResponse.message}
+
+                  <div className="schema-section">
+                    <h4>Incremental ROI</h4>
+                    <div className="info-item">
+                      <span className="label">ROI on Additional Spend</span>
+                      <span className="value">{simulationResponse.impact.incremental_roi.toFixed(2)}x</span>
+                    </div>
                   </div>
-                )}
+
+                  <div className="schema-section">
+                    <h4>Recommendation</h4>
+                    <div className="info-item">
+                      <span className="label">Action</span>
+                      <span className="value">{simulationResponse.recommendation.toUpperCase()}</span>
+                    </div>
+                  </div>
+
+                  <details className="json-details">
+                    <summary>View Raw JSON</summary>
+                    <pre>{JSON.stringify(simulationResponse, null, 2)}</pre>
+                  </details>
+                </div>
+              </div>
+            )}
+            
+            {simulationResponse && simulationResponse.status === 'error' && (
+              <div className="error-message">
+                ✗ Error: {simulationResponse.message}
               </div>
             )}
           </section>
         )}
-
-        {/* Chat Interface */}
-        <section className="section">
-          <h2>Chat with AI Agent</h2>
-          <div className="form-group">
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleChat()}
-              placeholder="Ask a question about your data..."
-              data-testid="chat-input"
-            />
-            <button 
-              onClick={handleChat} 
-              disabled={loading}
-              data-testid="chat-button"
-            >
-              {loading ? 'Sending...' : 'Send'}
-            </button>
-          </div>
-          {chatResponse && (
-            <div className="response-box" data-testid="chat-response">
-              <h3>Chat Response:</h3>
-              <pre>{JSON.stringify(chatResponse, null, 2)}</pre>
-            </div>
-          )}
-        </section>
-
-        {/* View Decisions */}
-        <section className="section">
-          <h2>Decisions Ledger</h2>
-          <button 
-            onClick={fetchDecisions} 
-            disabled={loading}
-            data-testid="fetch-decisions-button"
-          >
-            {loading ? 'Loading...' : 'Fetch Decisions'}
-          </button>
-          {decisions && (
-            <div className="response-box" data-testid="decisions-response">
-              <h3>Decisions:</h3>
-              <pre>{JSON.stringify(decisions, null, 2)}</pre>
-            </div>
-          )}
-        </section>
       </main>
 
       <footer>
-        <p>Decision Ledger MVP - Simple Preview Interface</p>
+        <p>ChanksHQ MVP — Terminal Interface</p>
       </footer>
     </div>
   );
