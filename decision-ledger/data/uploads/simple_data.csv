@@ -1,0 +1,6 @@
+product_id,product_name,target_qty,actual_qty,status,notes
+P001,Widget A,100,85,In Progress,delayed due to supply
+P002,Widget B,200,210,Complete,exceeded target
+P003,Gadget X,150,90,Blocked,waiting on vendor
+P004,Gadget Y,300,295,In Progress,almost done
+P005,Device Z,250,200,Warning,20% below target
