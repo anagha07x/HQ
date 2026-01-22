@@ -201,9 +201,22 @@ class DecisionIntelligenceEngine:
             df = df.copy()
             df.columns = [str(c).strip() for c in df.columns]
             
+            # Remove unnamed/index columns
+            unnamed_cols = [c for c in df.columns if c.startswith('Unnamed:')]
+            if unnamed_cols:
+                df = df.drop(columns=unnamed_cols)
+            
+            # Skip if no columns left
+            if df.empty or len(df.columns) == 0:
+                continue
+            
             # Remove completely empty rows/columns
             df = df.dropna(how='all', axis=0)
             df = df.dropna(how='all', axis=1)
+            
+            # Skip if empty after cleaning
+            if df.empty:
+                continue
             
             # Handle duplicate column names
             cols = pd.Series(df.columns)
