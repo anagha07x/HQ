@@ -557,9 +557,13 @@ async def analyze_dataset(request: ForecastRequest):
                 "message": "Please confirm column role mapping first"
             }
         
-        # Load data
+        # Load data using universal ingestion
         ingestion = DataIngestion()
-        df = await ingestion.ingest_csv(dataset["file_path"])
+        ingestion_result = await ingestion.ingest_file(dataset["file_path"])
+        
+        # Get primary dataframe
+        primary_sheet = dataset.get("primary_sheet", ingestion_result['sheets'][0])
+        df = ingestion_result['dataframes'][primary_sheet]
         
         # Run analysis pipeline
         emergent_key = os.getenv("EMERGENT_LLM_KEY")
@@ -570,6 +574,13 @@ async def analyze_dataset(request: ForecastRequest):
             role_mapping=dataset.get("role_mapping", []),
             dataset_id=request.dataset_id
         )
+        
+        # Add file type context
+        analysis['file_info'] = {
+            'file_type': ingestion_result['file_type'],
+            'sheets': ingestion_result['sheets'],
+            'primary_sheet': primary_sheet
+        }
         
         # Store analysis
         analysis_doc = {
