@@ -114,13 +114,13 @@ class DecisionIntelligenceEngine:
             metadata={'dataset_id': dataset_id, 'sheet_count': len(datasets)}
         )
         
-        # Step 1: Classify sheets by structural role
-        self._log("Step 1: Classifying sheet roles...")
-        sheet_profiles = self._classify_sheets(datasets)
+        # Step 1: Normalize dataframes FIRST (before classification)
+        self._log("Step 1: Normalizing data...")
+        normalized_datasets = self._normalize_datasets(datasets, {})
         
-        # Step 2: Normalize dataframes
-        self._log("Step 2: Normalizing data...")
-        normalized_datasets = self._normalize_datasets(datasets, sheet_profiles)
+        # Step 2: Classify sheets by structural role (on normalized data)
+        self._log("Step 2: Classifying sheet roles...")
+        sheet_profiles = self._classify_sheets(normalized_datasets)
         
         # Step 3: Detect entities
         self._log("Step 3: Detecting entities...")
