@@ -1,4 +1,3 @@
-name,value,spend,revenue
-Product A,100,5000,15000
-Product B,200,8000,24000
-Product C,150,6000,18000
+name,spend,revenue
+Product A,5000,15000
+Product B,8000,24000
