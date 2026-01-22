@@ -20,6 +20,8 @@ from core.role_mapper import ColumnRoleMapper
 from models.baseline_model import BaselineModel
 from models.roi_curve import ROICurve
 from models.scenario_simulator import ScenarioSimulator
+from ai.dataset_analyzer import DatasetAnalyzer
+from ai.reasoning_agent import ReasoningAgent
 
 
 ROOT_DIR = Path(__file__).parent
