@@ -448,6 +448,144 @@ async def confirm_role_mapping(request: RoleMappingRequest):
         logger.error(f"Role mapping error: {str(e)}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
+@api_router.post("/analyze-dataset")
+async def analyze_dataset(request: ForecastRequest):
+    """Run structured dataset analysis pipeline (Step 2 of reasoning flow)."""
+    try:
+        # Get dataset
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        if not dataset.get("role_mapping_confirmed", False):
+            return {
+                "status": "error",
+                "message": "Please confirm column role mapping first"
+            }
+        
+        # Load data
+        ingestion = DataIngestion()
+        df = await ingestion.ingest_csv(dataset["file_path"])
+        
+        # Run analysis pipeline
+        emergent_key = os.getenv("EMERGENT_LLM_KEY")
+        analyzer = DatasetAnalyzer(api_key=emergent_key)
+        
+        analysis = await analyzer.analyze_dataset(
+            df=df,
+            role_mapping=dataset.get("role_mapping", []),
+            dataset_id=request.dataset_id
+        )
+        
+        # Store analysis
+        analysis_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "analysis_type": "structured_pipeline",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "results": analysis
+        }
+        await db.dataset_analyses.insert_one(analysis_doc)
+        
+        return {
+            "status": "success",
+            "analysis_id": analysis_doc["id"],
+            **analysis
+        }
+        
+    except Exception as e:
+        logger.error(f"Dataset analysis error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+@api_router.post("/explain-results")
+async def explain_results(request: ForecastRequest):
+    """Generate business explanations for all model outputs (Step 6: Explainability)."""
+    try:
+        # Get dataset and analysis
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        # Get stored analysis
+        dataset_analysis = await db.dataset_analyses.find_one(
+            {"dataset_id": request.dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not dataset_analysis:
+            return {
+                "status": "error",
+                "message": "Please run dataset analysis first (/api/analyze-dataset)"
+            }
+        
+        # Get model outputs
+        forecast = await db.forecasts.find_one(
+            {"dataset_id": request.dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        roi_analysis = await db.roi_analyses.find_one(
+            {"dataset_id": request.dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        # Initialize reasoning agent
+        emergent_key = os.getenv("EMERGENT_LLM_KEY")
+        reasoning = ReasoningAgent(api_key=emergent_key)
+        
+        explanations = {}
+        
+        # Explain forecast
+        if forecast:
+            explanations["forecast"] = await reasoning.explain_forecast_results(
+                forecast.get("results", {}),
+                dataset_analysis.get("results", {})
+            )
+        
+        # Explain ROI
+        if roi_analysis:
+            explanations["roi"] = await reasoning.explain_roi_analysis(
+                roi_analysis.get("results", {}),
+                dataset_analysis.get("results", {})
+            )
+        
+        # Generate decision summary
+        all_outputs = {
+            "dataset_analysis": dataset_analysis.get("results", {}),
+            "forecast": forecast.get("results", {}) if forecast else None,
+            "roi": roi_analysis.get("results", {}) if roi_analysis else None
+        }
+        
+        decision_summary = await reasoning.generate_decision_summary(
+            request.dataset_id,
+            all_outputs
+        )
+        
+        # Store in decision ledger
+        ledger_entry = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "decision": decision_summary,
+            "explanations": explanations
+        }
+        await db.decision_ledger.insert_one(ledger_entry)
+        
+        return {
+            "status": "success",
+            "ledger_id": ledger_entry["id"],
+            "explanations": explanations,
+            "decision_summary": decision_summary
+        }
+        
+    except Exception as e:
+        logger.error(f"Explanation error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
 # Include the router in the main app
 app.include_router(api_router)
 
