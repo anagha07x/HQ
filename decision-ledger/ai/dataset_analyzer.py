@@ -1,6 +1,6 @@
 """Dataset analyzer with structured multi-step pipeline."""
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage, SystemMessage
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List, Optional
