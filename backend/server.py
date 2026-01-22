@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone
-import aiofiles
 import pandas as pd
 from core.ingestion_engine import DataIngestionEngine
 from core.dataset_registry import DatasetRegistry
