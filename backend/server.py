@@ -111,6 +111,29 @@ async def health_check():
 async def upload_dataset(file: UploadFile = File(...)):
     """Upload dataset (CSV, XLSX, JSON) for analysis."""
     try:
+        # Validate MIME type
+        allowed_mimes = [
+            'text/csv',
+            'application/csv',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
+            'application/vnd.ms-excel',  # XLS
+            'application/json',
+            'text/json'
+        ]
+        
+        allowed_extensions = ['.csv', '.xlsx', '.xls', '.json']
+        file_ext = Path(file.filename).suffix.lower()
+        
+        # Validate extension
+        if file_ext not in allowed_extensions:
+            return {
+                "status": "error",
+                "message": f"Unsupported file format: {file_ext}. Allowed: CSV, XLSX, XLS, JSON"
+            }
+        
+        # Log MIME type for debugging (some browsers send incorrect MIME types)
+        logger.info(f"Upload: {file.filename}, MIME: {file.content_type}, Ext: {file_ext}")
+        
         # Create uploads directory if it doesn't exist
         upload_dir = Path("/app/decision-ledger/data/uploads")
         upload_dir.mkdir(parents=True, exist_ok=True)
@@ -120,6 +143,15 @@ async def upload_dataset(file: UploadFile = File(...)):
         async with aiofiles.open(file_path, 'wb') as out_file:
             content = await file.read()
             await out_file.write(content)
+        
+        # Verify file was written
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            return {
+                "status": "error",
+                "message": "File upload failed - file not saved properly"
+            }
+        
+        logger.info(f"File saved: {file_path}, size: {os.path.getsize(file_path)} bytes")
         
         # Universal data ingestion
         ingestion = DataIngestion()
@@ -166,6 +198,8 @@ async def upload_dataset(file: UploadFile = File(...)):
             "ingestion_metadata": file_metadata
         }
         await db.datasets.insert_one(file_doc)
+        
+        logger.info(f"Dataset created: {file_doc['id']}, type: {file_type}, sheets: {len(sheets)}")
         
         # Return response with file type info
         return {
