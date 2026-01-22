@@ -9,10 +9,12 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 import pandas as pd
+import numpy as np
+import math
 from core.ingestion_engine import DataIngestionEngine
 from core.dataset_registry import DatasetRegistry
 from core.ingestion import DataIngestion  # Keep for analysis endpoints that load from disk
@@ -23,6 +25,30 @@ from models.roi_curve import ROICurve
 from models.scenario_simulator import ScenarioSimulator
 from ai.dataset_analyzer import DatasetAnalyzer
 from ai.reasoning_agent import ReasoningAgent
+
+
+def sanitize_for_json(obj: Any) -> Any:
+    """Recursively sanitize data for JSON serialization.
+    
+    Converts NaN, Inf, -Inf to None to ensure JSON compliance.
+    """
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, (np.floating, np.integer)):
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    elif pd.isna(obj):
+        return None
+    else:
+        return obj
 
 
 ROOT_DIR = Path(__file__).parent
