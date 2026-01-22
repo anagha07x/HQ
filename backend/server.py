@@ -158,24 +158,88 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 @api_router.post("/chat")
 async def chat(request: ChatRequest):
-    """Chat endpoint for decision reasoning."""
-    # Placeholder implementation - just echo for now
-    chat_response = {
-        "status": "success",
-        "response": f"Received your message: '{request.message}'. Full LLM integration coming soon!",
-        "session_id": request.session_id,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
-    
-    # Store chat message
-    await db.chat_messages.insert_one({
-        "session_id": request.session_id,
-        "user_message": request.message,
-        "bot_response": chat_response["response"],
-        "timestamp": chat_response["timestamp"]
-    })
-    
-    return chat_response
+    """Chat endpoint - READ ONLY from analysis outputs (Step 7: Chat layer)."""
+    try:
+        # Build context from stored analyses
+        context = {}
+        
+        if request.dataset_id:
+            # Get dataset analysis
+            dataset_analysis = await db.dataset_analyses.find_one(
+                {"dataset_id": request.dataset_id},
+                {"_id": 0},
+                sort=[("created_at", -1)]
+            )
+            
+            if dataset_analysis:
+                context["dataset_analysis"] = dataset_analysis.get("results", {})
+            
+            # Get forecast
+            forecast = await db.forecasts.find_one(
+                {"dataset_id": request.dataset_id},
+                {"_id": 0},
+                sort=[("created_at", -1)]
+            )
+            
+            if forecast:
+                context["forecast"] = forecast.get("results", {})
+            
+            # Get ROI analysis
+            roi = await db.roi_analyses.find_one(
+                {"dataset_id": request.dataset_id},
+                {"_id": 0},
+                sort=[("created_at", -1)]
+            )
+            
+            if roi:
+                context["roi"] = roi.get("results", {})
+            
+            # Get decision ledger
+            decision = await db.decision_ledger.find_one(
+                {"dataset_id": request.dataset_id},
+                {"_id": 0},
+                sort=[("created_at", -1)]
+            )
+            
+            if decision:
+                context["decision_ledger"] = decision
+        
+        if not context:
+            return {
+                "status": "error",
+                "message": "No analysis available. Please upload data and run analysis first."
+            }
+        
+        # Get response from reasoning agent (READ ONLY)
+        emergent_key = os.getenv("EMERGENT_LLM_KEY")
+        reasoning = ReasoningAgent(api_key=emergent_key)
+        
+        response_text = await reasoning.chat_response(
+            user_message=request.message,
+            context=context,
+            session_id=request.session_id
+        )
+        
+        # Store chat exchange
+        chat_doc = {
+            "session_id": request.session_id,
+            "dataset_id": request.dataset_id,
+            "user_message": request.message,
+            "bot_response": response_text,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        await db.chat_messages.insert_one(chat_doc)
+        
+        return {
+            "status": "success",
+            "response": response_text,
+            "session_id": request.session_id,
+            "timestamp": chat_doc["timestamp"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
 
 @api_router.post("/forecast")
 async def generate_forecast(request: ForecastRequest):
