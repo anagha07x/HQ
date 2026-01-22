@@ -97,6 +97,11 @@ class RoleMappingRequest(BaseModel):
     dataset_id: str
     role_mapping: List[Dict[str, str]]  # [{"name": "spend", "role": "ACTION"}, ...]
 
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = "default"
+    dataset_id: Optional[str] = None
+
 @api_router.get("/health")
 async def health_check():
     """Health check endpoint."""
