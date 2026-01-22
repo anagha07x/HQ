@@ -111,38 +111,38 @@ async def health_check():
 async def upload_dataset(file: UploadFile = File(...)):
     """Upload dataset (CSV, XLSX, JSON) for analysis."""
     try:
-        # Validate MIME type
-        allowed_mimes = [
-            'text/csv',
-            'application/csv',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # XLSX
-            'application/vnd.ms-excel',  # XLS
-            'application/json',
-            'text/json'
-        ]
-        
+        # Validate extension first (before reading file)
         allowed_extensions = ['.csv', '.xlsx', '.xls', '.json']
         file_ext = Path(file.filename).suffix.lower()
         
-        # Validate extension
         if file_ext not in allowed_extensions:
             return {
                 "status": "error",
                 "message": f"Unsupported file format: {file_ext}. Allowed: CSV, XLSX, XLS, JSON"
             }
         
-        # Log MIME type for debugging (some browsers send incorrect MIME types)
-        logger.info(f"Upload: {file.filename}, MIME: {file.content_type}, Ext: {file_ext}")
+        # READ FILE EXACTLY ONCE
+        content = await file.read()
+        file_size = len(content)
         
-        # Create uploads directory if it doesn't exist
+        # Validate file size
+        max_size = 50 * 1024 * 1024  # 50MB
+        if file_size > max_size:
+            return {
+                "status": "error",
+                "message": f"File too large: {file_size / 1024 / 1024:.2f}MB (max 50MB)"
+            }
+        
+        logger.info(f"Upload: {file.filename}, MIME: {file.content_type}, Ext: {file_ext}, Size: {file_size} bytes")
+        
+        # Create uploads directory
         upload_dir = Path("/app/decision-ledger/data/uploads")
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save file
+        # Save file to disk using the bytes we already read
         file_path = upload_dir / file.filename
-        async with aiofiles.open(file_path, 'wb') as out_file:
-            content = await file.read()
-            await out_file.write(content)
+        with open(file_path, 'wb') as f:
+            f.write(content)
         
         # Verify file was written
         if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
@@ -153,26 +153,18 @@ async def upload_dataset(file: UploadFile = File(...)):
         
         logger.info(f"File saved: {file_path}, size: {os.path.getsize(file_path)} bytes")
         
-        # Universal data ingestion
+        # Universal data ingestion from bytes (NOT from file path)
         ingestion = DataIngestion()
         
-        # Validate file
-        if not ingestion.validate_file(str(file_path)):
-            return {
-                "status": "error",
-                "message": f"Invalid file format or size. Supported: CSV, XLSX, JSON (max 50MB)"
-            }
-        
-        # Ingest file (handles CSV, XLSX, JSON)
-        ingestion_result = await ingestion.ingest_file(str(file_path))
+        # Pass bytes to ingestion (read once pattern)
+        ingestion_result = await ingestion.ingest_from_bytes(content, file.filename)
         
         file_type = ingestion_result['file_type']
         sheets = ingestion_result['sheets']
         dataframes = ingestion_result['dataframes']
         file_metadata = ingestion_result['metadata']
         
-        # For multi-sheet files, use first sheet by default or combine
-        # For now, use first sheet as primary dataset
+        # For multi-sheet files, use first sheet by default
         primary_sheet = sheets[0]
         primary_df = dataframes[primary_sheet]
         
@@ -190,7 +182,7 @@ async def upload_dataset(file: UploadFile = File(...)):
             "total_sheets": len(sheets),
             "sheet_names": sheets,
             "primary_sheet": primary_sheet,
-            "size": len(content),
+            "size": file_size,
             "rows": file_metadata['total_rows'],
             "columns": file_metadata['total_columns'],
             "column_roles": column_roles,
