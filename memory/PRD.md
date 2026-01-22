@@ -12,6 +12,7 @@ Build a Decision Intelligence Platform that supports file upload (CSV, XLSX, XLS
 - What-if scenario simulator
 - Decision ledger for logging decisions
 - Chat interface for querying analysis results
+- **Industry-agnostic Decision Intelligence Engine**
 
 ## Tech Stack
 - **Backend:** FastAPI (Python)
@@ -26,7 +27,15 @@ Build a Decision Intelligence Platform that supports file upload (CSV, XLSX, XLS
 │   └── server.py                    # FastAPI app with all endpoints
 ├── decision-ledger/
 │   └── core/
-│       ├── ingestion_engine.py      # Bulletproof file ingestion (bytes-only)
+│       ├── ontology.py              # Core ontology (Entity, Fact, Plan, Actual, Gap, Constraint, Action, Decision)
+│       ├── decision_engine.py       # Main orchestrator
+│       ├── sheet_classifier.py      # Structural sheet role inference
+│       ├── entity_detector.py       # Cross-sheet entity detection
+│       ├── relationship_graph.py    # Entity relationship graph
+│       ├── gap_analyzer.py          # Plan vs Actual gap detection
+│       ├── constraint_extractor.py  # Text-based constraint extraction
+│       ├── decision_generator.py    # Decision candidate generation
+│       ├── ingestion_engine.py      # Bulletproof file ingestion
 │       ├── dataset_registry.py      # Data structure for parsed datasets
 │       ├── ingestion.py             # Legacy ingestion (disk-based)
 │       ├── role_mapper.py           # Column role detection
@@ -38,45 +47,54 @@ Build a Decision Intelligence Platform that supports file upload (CSV, XLSX, XLS
 
 ## What's Been Implemented
 
+### January 22, 2026 - Decision Intelligence Engine (COMPLETE)
+**Feature:** Industry-agnostic decision intelligence that analyzes any enterprise workbook
+
+**Core Ontology Implemented:**
+- ENTITY: Detected things being tracked
+- FACT: Recorded measurements
+- PLAN: Target/planned values
+- ACTUAL: Realized values
+- GAP: Plan vs Actual deviations
+- CONSTRAINT: Limitations from text fields
+- ACTION: Proposed remediation steps
+- DECISION: Candidates with evidence
+
+**Processing Pipeline:**
+1. ✅ Sheet role inference (structural, not name-based)
+2. ✅ Data normalization (clean dataframes)
+3. ✅ Entity detection across sheets
+4. ✅ Entity relationship graph
+5. ✅ Metric/dimension detection
+6. ✅ Gap identification (plan vs actual)
+7. ✅ Constraint extraction from text
+8. ✅ Decision candidate generation
+9. ✅ Decision ledger recording
+
+**No Domain-Specific Logic:**
+- No hardcoded keywords
+- No industry-specific rules
+- Pure structural and statistical analysis
+
+**API Endpoints Added:**
+- `POST /api/analyze-intelligence` - Run full analysis
+- `GET /api/intelligence/{dataset_id}` - Get analysis results
+
 ### December 22, 2025 - File Upload Bug Fix (COMPLETE)
-**Issue:** Persistent "Body is disturbed or locked" / RequestBodyReadError during file uploads
+**Issue:** Persistent "Body is disturbed or locked" / RequestBodyReadError
 
-**Root Cause:** The UploadFile async stream was being consumed by middleware or multiple read attempts before the endpoint could process it.
-
-**Solution Implemented:**
-1. **Backend Changes:**
-   - Rewrote `ingestion_engine.py` to accept only raw bytes (never touches UploadFile)
-   - Modified upload endpoint to read from `file.file` (SpooledTemporaryFile) synchronously
-   - Added `sanitize_for_json()` utility to handle NaN/Inf values in responses
-   - Removed async file.read() calls that could fail with body lock issues
-
-2. **Key Code Pattern:**
-   ```python
-   # Capture bytes from underlying SpooledTemporaryFile (sync, bulletproof)
-   spooled_file = file.file
-   spooled_file.seek(0)
-   file_bytes = spooled_file.read()
-   
-   # Process from bytes only
-   registry = engine.ingest_from_bytes(file_bytes, filename, dataset_id)
-   ```
-
-3. **Files Modified:**
-   - `/app/backend/server.py` - Upload endpoint rewritten
-   - `/app/decision-ledger/core/ingestion_engine.py` - Bytes-only processing
-   - `/app/decision-ledger/core/role_mapper.py` - NaN handling in sample values
-
-**Verification:**
-- CSV upload: SUCCESS
-- JSON upload: SUCCESS
-- XLSX multi-sheet (JAN V4.xlsx with 3518 rows, 7 sheets): SUCCESS
-- Rapid consecutive uploads: SUCCESS
+**Solution:** 
+- Read from SpooledTemporaryFile synchronously
+- DataIngestionEngine accepts only raw bytes
+- Added sanitize_for_json() for NaN/Inf handling
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/upload` | POST | Upload and analyze dataset file |
+| `/api/analyze-intelligence` | POST | Run Decision Intelligence Engine |
+| `/api/intelligence/{id}` | GET | Get intelligence analysis results |
 | `/api/confirm-role-mapping` | POST | Confirm column role assignments |
 | `/api/forecast` | POST | Generate baseline forecast |
 | `/api/roi-curve` | POST | Generate ROI efficiency curve |
@@ -92,18 +110,20 @@ Build a Decision Intelligence Platform that supports file upload (CSV, XLSX, XLS
 
 ### P0 (Critical) - COMPLETE
 - [x] Fix file upload "Body is disturbed or locked" error
+- [x] Implement industry-agnostic Decision Intelligence Engine
 
 ### P1 (High Priority)
+- [ ] Add frontend UI for Decision Intelligence results
 - [ ] Unify ingestion systems (migrate legacy endpoints to new engine)
-- [ ] Add file type validation error messages to UI
-- [ ] Add upload progress indicator
+- [ ] Add decision approval/rejection workflow
 
 ### P2 (Medium Priority)
 - [ ] Add data preview before analysis
 - [ ] Implement file size warning for large uploads
-- [ ] Add support for compressed files (.zip containing data files)
+- [ ] Add visualization for entity relationship graph
+- [ ] Export decision report to PDF
 
 ### P3 (Low Priority/Future)
 - [ ] Add drag-and-drop file upload
-- [ ] Export analysis results to PDF
 - [ ] Multi-file comparison analysis
+- [ ] Real-time collaboration on decisions
