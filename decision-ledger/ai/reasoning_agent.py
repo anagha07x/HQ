@@ -234,14 +234,15 @@ Return ONLY valid JSON:
             self.chat_sessions[session_id] = LlmChat(
                 api_key=self.api_key,
                 model="claude-sonnet-4.5",
-                session_id=session_id,
-                system_message=SystemMessage(content=self.SYSTEM_PROMPT)
+                session_id=session_id
             )
         
         chat = self.chat_sessions[session_id]
         
-        # Build context-aware prompt
-        prompt = f"""User question: {user_message}
+        # Build context-aware prompt with system instructions
+        prompt = f"""{self.SYSTEM_PROMPT}
+
+User question: {user_message}
 
 AVAILABLE CONTEXT:
 {json.dumps(context, indent=2)}
