@@ -244,11 +244,14 @@ function App() {
 
         {/* CSV Upload */}
         <section className="section">
-          <h2>Upload CSV Dataset</h2>
+          <h2>Upload Dataset</h2>
+          <p className="section-description">
+            Supported formats: CSV, XLSX, XLS, JSON (max 50MB)
+          </p>
           <div className="form-group">
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls,.json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/json,text/csv"
               onChange={handleFileChange}
               data-testid="file-upload-input"
             />
