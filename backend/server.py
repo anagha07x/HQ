@@ -127,8 +127,8 @@ async def upload_dataset(file: UploadFile = File(...)):
         # Use clean ingestion engine
         engine = DataIngestionEngine()
         
-        # Ingest file (reads exactly once, returns DatasetRegistry)
-        registry = await engine.ingest_upload(file, dataset_id)
+        # Ingest file (reads exactly once, returns DatasetRegistry and bytes)
+        registry, file_bytes = await engine.ingest_upload(file, dataset_id)
         
         # Get primary dataset for role detection
         primary_df = registry.get_primary_dataset()
@@ -142,12 +142,10 @@ async def upload_dataset(file: UploadFile = File(...)):
         upload_dir = Path("/app/decision-ledger/data/uploads")
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save file to disk (we already have bytes from registry)
+        # Save file to disk using captured bytes
         file_path = upload_dir / file.filename
-        async with aiofiles.open(file_path, 'wb') as f:
-            # Re-read from UploadFile is safe now since we've already consumed it in engine
-            # But we don't need to - we can skip saving for now
-            pass
+        with open(file_path, 'wb') as f:
+            f.write(file_bytes)
         
         # Store metadata in database
         file_doc = {
