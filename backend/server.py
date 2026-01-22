@@ -21,6 +21,9 @@ from core.ingestion import DataIngestion  # Keep for analysis endpoints that loa
 from core.schema_detector import SchemaDetector
 from core.role_mapper import ColumnRoleMapper
 from core.decision_engine import DecisionIntelligenceEngine
+from core.vocabulary_adapter import IndustryVocabularyAdapter
+from core.decision_explainer import DecisionExplainer
+from core.decision_grouper import DecisionGroupingEngine
 from models.baseline_model import BaselineModel
 from models.roi_curve import ROICurve
 from models.scenario_simulator import ScenarioSimulator
