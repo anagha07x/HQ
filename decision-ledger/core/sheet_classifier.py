@@ -67,7 +67,12 @@ class SheetClassifier:
     
     def _analyze_sheet(self, name: str, df: pd.DataFrame) -> SheetProfile:
         """Analyze a single sheet's structure."""
-        if df.empty:
+        # Filter out unnamed columns before analysis
+        cols_to_keep = [c for c in df.columns if not str(c).startswith('Unnamed:')]
+        if cols_to_keep:
+            df = df[cols_to_keep]
+        
+        if df.empty or len(df.columns) == 0:
             return SheetProfile(
                 name=name,
                 row_count=0,
