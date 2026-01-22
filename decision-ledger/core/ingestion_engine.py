@@ -16,7 +16,7 @@ class DataIngestionEngine:
     SUPPORTED_FORMATS = {'.csv', '.xlsx', '.xls', '.json'}
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
     
-    async def ingest_upload(self, file: UploadFile, dataset_id: str) -> DatasetRegistry:
+    async def ingest_upload(self, file: UploadFile, dataset_id: str) -> tuple[DatasetRegistry, bytes]:
         """Ingest file from FastAPI UploadFile.
         
         This method reads the file EXACTLY ONCE and converts to BytesIO immediately.
@@ -26,7 +26,7 @@ class DataIngestionEngine:
             dataset_id: Unique identifier for this dataset
             
         Returns:
-            DatasetRegistry object with parsed data
+            Tuple of (DatasetRegistry object with parsed data, original file bytes)
             
         Raises:
             ValueError: If file format not supported or file too large
@@ -65,12 +65,14 @@ class DataIngestionEngine:
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
         
-        return DatasetRegistry(
+        registry = DatasetRegistry(
             dataset_id=dataset_id,
             source_type=source_type,
             datasets=datasets,
             metadata=metadata
         )
+        
+        return registry, file_bytes
     
     def _get_source_type(self, file_ext: str) -> str:
         """Map file extension to source type.
