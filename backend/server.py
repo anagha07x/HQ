@@ -343,6 +343,427 @@ async def get_intelligence_analysis(dataset_id: str):
         return {"status": "error", "message": str(e)}
 
 
+# ============================================================
+# DECISION INTELLIGENCE PLATFORM - NEW API ENDPOINTS
+# ============================================================
+
+class DecisionAction(BaseModel):
+    """Request model for decision approval/rejection."""
+    user_id: Optional[str] = "system"
+    notes: Optional[str] = ""
+
+
+@api_router.get("/intelligence/{dataset_id}/summary")
+async def get_intelligence_summary(dataset_id: str):
+    """Get dataset overview with sheets, entities, and summary stats."""
+    try:
+        # Get dataset info
+        dataset = await db.datasets.find_one({"id": dataset_id}, {"_id": 0})
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        # Get analysis
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found. Run analyze-intelligence first."}
+        
+        results = analysis.get("results", {})
+        
+        # Build summary response
+        return sanitize_for_json({
+            "status": "success",
+            "dataset": {
+                "id": dataset_id,
+                "filename": dataset.get("filename", "Unknown"),
+                "uploaded_at": dataset.get("uploaded_at"),
+                "file_type": dataset.get("file_type"),
+                "total_rows": dataset.get("rows", 0),
+                "total_columns": dataset.get("columns", 0)
+            },
+            "analysis": {
+                "analyzed_at": results.get("analyzed_at"),
+                "sheet_count": results.get("sheet_count", 0),
+                "entity_count": results.get("entity_count", 0),
+                "gap_count": results.get("gap_count", 0),
+                "critical_gaps": results.get("critical_gaps", 0),
+                "constraint_count": results.get("constraint_count", 0),
+                "blocking_constraints": results.get("blocking_constraints", 0),
+                "decision_count": results.get("decision_count", 0)
+            },
+            "sheets": [
+                {
+                    "name": name,
+                    "role": role,
+                    "profile": results.get("sheet_profiles", {}).get(name, {})
+                }
+                for name, role in results.get("sheet_roles", {}).items()
+            ],
+            "entities": results.get("entities", []),
+            "entity_graph": results.get("entity_graph", {}),
+            "top_decision_summary": results.get("top_decision_summary", "")
+        })
+        
+    except Exception as e:
+        logger.error(f"Get summary error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/intelligence/{dataset_id}/gaps")
+async def get_intelligence_gaps(dataset_id: str):
+    """Get all gaps with severity breakdown and impact analysis."""
+    try:
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found"}
+        
+        results = analysis.get("results", {})
+        gaps = results.get("gaps", [])
+        
+        # Calculate severity breakdown
+        critical = [g for g in gaps if g.get("severity") == "critical"]
+        warning = [g for g in gaps if g.get("severity") == "warning"]
+        normal = [g for g in gaps if g.get("severity") == "normal"]
+        
+        # Calculate total impact
+        total_impact = sum(abs(g.get("absolute_gap", 0) or 0) for g in gaps)
+        critical_impact = sum(abs(g.get("absolute_gap", 0) or 0) for g in critical)
+        
+        # Group gaps by entity
+        entity_gaps = {}
+        for gap in gaps:
+            entity_id = gap.get("entity_id", "unknown")
+            if entity_id not in entity_gaps:
+                entity_gaps[entity_id] = []
+            entity_gaps[entity_id].append(gap)
+        
+        return sanitize_for_json({
+            "status": "success",
+            "summary": {
+                "total_gaps": len(gaps),
+                "critical_count": len(critical),
+                "warning_count": len(warning),
+                "normal_count": len(normal),
+                "total_impact": total_impact,
+                "critical_impact": critical_impact
+            },
+            "gaps": gaps,
+            "gaps_by_entity": entity_gaps,
+            "plans": results.get("plans", []),
+            "actuals": results.get("actuals", [])
+        })
+        
+    except Exception as e:
+        logger.error(f"Get gaps error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/intelligence/{dataset_id}/constraints")
+async def get_intelligence_constraints(dataset_id: str):
+    """Get all constraints grouped by type."""
+    try:
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found"}
+        
+        results = analysis.get("results", {})
+        constraints = results.get("constraints", [])
+        
+        # Group by constraint type
+        grouped = {}
+        for c in constraints:
+            ctype = c.get("constraint_type", "other")
+            if ctype not in grouped:
+                grouped[ctype] = []
+            grouped[ctype].append(c)
+        
+        # Calculate blocking count
+        blocking_types = {"blocking", "deadline", "dependency"}
+        blocking = [c for c in constraints if c.get("constraint_type") in blocking_types]
+        
+        return sanitize_for_json({
+            "status": "success",
+            "summary": {
+                "total_constraints": len(constraints),
+                "blocking_count": len(blocking),
+                "type_breakdown": {k: len(v) for k, v in grouped.items()}
+            },
+            "constraints": constraints,
+            "constraints_by_type": grouped
+        })
+        
+    except Exception as e:
+        logger.error(f"Get constraints error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/intelligence/{dataset_id}/decisions")
+async def get_intelligence_decisions(dataset_id: str):
+    """Get all decision candidates with their evidence."""
+    try:
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found"}
+        
+        results = analysis.get("results", {})
+        decisions = results.get("decisions", [])
+        
+        # Enrich decisions with status from ledger
+        enriched_decisions = []
+        for d in decisions:
+            decision_id = d.get("id")
+            
+            # Check if decision has been acted upon
+            ledger_entry = await db.decision_ledger_entries.find_one(
+                {"decision_id": decision_id},
+                {"_id": 0}
+            )
+            
+            enriched = {**d}
+            if ledger_entry:
+                enriched["ledger_status"] = ledger_entry.get("status", "pending")
+                enriched["acted_at"] = ledger_entry.get("acted_at")
+                enriched["acted_by"] = ledger_entry.get("acted_by")
+            else:
+                enriched["ledger_status"] = "pending"
+            
+            enriched_decisions.append(enriched)
+        
+        # Group by status
+        pending = [d for d in enriched_decisions if d.get("ledger_status") == "pending"]
+        approved = [d for d in enriched_decisions if d.get("ledger_status") == "approved"]
+        rejected = [d for d in enriched_decisions if d.get("ledger_status") == "rejected"]
+        
+        return sanitize_for_json({
+            "status": "success",
+            "summary": {
+                "total_decisions": len(decisions),
+                "pending_count": len(pending),
+                "approved_count": len(approved),
+                "rejected_count": len(rejected)
+            },
+            "decisions": enriched_decisions,
+            "decisions_by_status": {
+                "pending": pending,
+                "approved": approved,
+                "rejected": rejected
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Get decisions error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.post("/decisions/{decision_id}/approve")
+async def approve_decision(decision_id: str, action: DecisionAction):
+    """Approve a decision and record in ledger."""
+    try:
+        # Find the decision in any analysis
+        analysis = await db.intelligence_analyses.find_one(
+            {"results.decisions.id": decision_id},
+            {"_id": 0}
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "Decision not found"}
+        
+        # Find the specific decision
+        decisions = analysis.get("results", {}).get("decisions", [])
+        decision = next((d for d in decisions if d.get("id") == decision_id), None)
+        
+        if not decision:
+            return {"status": "error", "message": "Decision not found in analysis"}
+        
+        # Check if already acted upon
+        existing = await db.decision_ledger_entries.find_one({"decision_id": decision_id})
+        if existing:
+            return {
+                "status": "error",
+                "message": f"Decision already {existing.get('status', 'processed')}"
+            }
+        
+        # Create ledger entry
+        ledger_entry = {
+            "id": str(uuid.uuid4()),
+            "decision_id": decision_id,
+            "dataset_id": analysis.get("dataset_id"),
+            "analysis_id": analysis.get("id"),
+            "decision_type": decision.get("decision_type"),
+            "summary": decision.get("summary"),
+            "reasoning": decision.get("reasoning"),
+            "evidence": decision,
+            "expected_impact": decision.get("impact_score"),
+            "confidence": decision.get("confidence_score"),
+            "status": "approved",
+            "acted_by": action.user_id,
+            "acted_at": datetime.now(timezone.utc).isoformat(),
+            "notes": action.notes,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.decision_ledger_entries.insert_one(ledger_entry)
+        
+        logger.info(f"Decision {decision_id} approved by {action.user_id}")
+        
+        return sanitize_for_json({
+            "status": "success",
+            "message": "Decision approved and recorded in ledger",
+            "ledger_entry": {k: v for k, v in ledger_entry.items() if k != "_id"}
+        })
+        
+    except Exception as e:
+        logger.error(f"Approve decision error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.post("/decisions/{decision_id}/reject")
+async def reject_decision(decision_id: str, action: DecisionAction):
+    """Reject a decision and record in ledger."""
+    try:
+        # Find the decision
+        analysis = await db.intelligence_analyses.find_one(
+            {"results.decisions.id": decision_id},
+            {"_id": 0}
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "Decision not found"}
+        
+        decisions = analysis.get("results", {}).get("decisions", [])
+        decision = next((d for d in decisions if d.get("id") == decision_id), None)
+        
+        if not decision:
+            return {"status": "error", "message": "Decision not found in analysis"}
+        
+        # Check if already acted upon
+        existing = await db.decision_ledger_entries.find_one({"decision_id": decision_id})
+        if existing:
+            return {
+                "status": "error",
+                "message": f"Decision already {existing.get('status', 'processed')}"
+            }
+        
+        # Create ledger entry
+        ledger_entry = {
+            "id": str(uuid.uuid4()),
+            "decision_id": decision_id,
+            "dataset_id": analysis.get("dataset_id"),
+            "analysis_id": analysis.get("id"),
+            "decision_type": decision.get("decision_type"),
+            "summary": decision.get("summary"),
+            "reasoning": decision.get("reasoning"),
+            "evidence": decision,
+            "expected_impact": decision.get("impact_score"),
+            "confidence": decision.get("confidence_score"),
+            "status": "rejected",
+            "acted_by": action.user_id,
+            "acted_at": datetime.now(timezone.utc).isoformat(),
+            "notes": action.notes,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.decision_ledger_entries.insert_one(ledger_entry)
+        
+        logger.info(f"Decision {decision_id} rejected by {action.user_id}")
+        
+        return sanitize_for_json({
+            "status": "success",
+            "message": "Decision rejected and recorded in ledger",
+            "ledger_entry": {k: v for k, v in ledger_entry.items() if k != "_id"}
+        })
+        
+    except Exception as e:
+        logger.error(f"Reject decision error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/ledger")
+async def get_decision_ledger(dataset_id: Optional[str] = None):
+    """Get the decision ledger, optionally filtered by dataset."""
+    try:
+        query = {}
+        if dataset_id:
+            query["dataset_id"] = dataset_id
+        
+        entries = await db.decision_ledger_entries.find(
+            query,
+            {"_id": 0}
+        ).sort("acted_at", -1).to_list(1000)
+        
+        # Group by status
+        approved = [e for e in entries if e.get("status") == "approved"]
+        rejected = [e for e in entries if e.get("status") == "rejected"]
+        
+        return sanitize_for_json({
+            "status": "success",
+            "summary": {
+                "total_entries": len(entries),
+                "approved_count": len(approved),
+                "rejected_count": len(rejected)
+            },
+            "entries": entries,
+            "entries_by_status": {
+                "approved": approved,
+                "rejected": rejected
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Get ledger error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/datasets")
+async def get_datasets():
+    """Get all uploaded datasets with their analysis status."""
+    try:
+        datasets = await db.datasets.find({}, {"_id": 0}).sort("uploaded_at", -1).to_list(100)
+        
+        # Enrich with analysis status
+        enriched = []
+        for d in datasets:
+            analysis = await db.intelligence_analyses.find_one(
+                {"dataset_id": d.get("id")},
+                {"_id": 0, "id": 1, "created_at": 1}
+            )
+            
+            enriched.append({
+                **d,
+                "has_analysis": analysis is not None,
+                "analysis_id": analysis.get("id") if analysis else None,
+                "analyzed_at": analysis.get("created_at") if analysis else None
+            })
+        
+        return sanitize_for_json({
+            "status": "success",
+            "datasets": enriched
+        })
+        
+    except Exception as e:
+        logger.error(f"Get datasets error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
 @api_router.post("/chat")
 async def chat(request: ChatRequest):
     """Chat endpoint - READ ONLY from analysis outputs (Step 7: Chat layer)."""
