@@ -113,22 +113,32 @@ async def health_check():
 async def upload_dataset(file: UploadFile = File(...)):
     """Upload dataset (CSV, XLSX, JSON) for analysis.
     
-    Clean implementation:
-    - Reads UploadFile exactly once
-    - No request.body(), request.form(), or request.json()
-    - Converts bytes to BytesIO immediately
-    - Supports multi-sheet XLSX
-    - Flattens JSON
+    BULLETPROOF implementation:
+    - Captures bytes from SpooledTemporaryFile directly
+    - Never calls file.read() on the async stream
+    - Processes entirely from captured bytes
+    - Immune to "Body is disturbed or locked" errors
     """
     try:
         # Generate dataset ID
         dataset_id = str(uuid.uuid4())
+        filename = file.filename or "unknown"
         
-        # Use clean ingestion engine
+        # CRITICAL: Capture bytes from the underlying SpooledTemporaryFile
+        # This bypasses any async stream issues completely
+        spooled_file = file.file  # This is a SpooledTemporaryFile
+        spooled_file.seek(0)  # Ensure we're at the start
+        file_bytes = spooled_file.read()  # Sync read from SpooledTemporaryFile
+        
+        # Validate we got data
+        if not file_bytes:
+            return {"status": "error", "message": "Empty file received"}
+        
+        logger.info(f"Captured {len(file_bytes)} bytes from {filename}")
+        
+        # Process using the bulletproof ingestion engine
         engine = DataIngestionEngine()
-        
-        # Ingest file (reads exactly once, returns DatasetRegistry and bytes)
-        registry, file_bytes = await engine.ingest_upload(file, dataset_id)
+        registry = engine.ingest_from_bytes(file_bytes, filename, dataset_id)
         
         # Get primary dataset for role detection
         primary_df = registry.get_primary_dataset()
@@ -143,7 +153,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         upload_dir.mkdir(parents=True, exist_ok=True)
         
         # Save file to disk using captured bytes
-        file_path = upload_dir / file.filename
+        file_path = upload_dir / filename
         with open(file_path, 'wb') as f:
             f.write(file_bytes)
         
@@ -175,7 +185,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         # Return response
         return {
             "status": "success",
-            "message": f"{registry.source_type.upper()} file '{file.filename}' uploaded and analyzed successfully",
+            "message": f"{registry.source_type.upper()} file '{filename}' uploaded and analyzed successfully",
             "dataset_id": dataset_id,
             "file_type": registry.source_type,
             "sheets": registry.metadata['sheet_names'],
