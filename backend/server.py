@@ -310,9 +310,11 @@ async def generate_forecast(request: ForecastRequest):
                 "message": "Required ACTION and OUTCOME columns not found in role mapping"
             }
         
-        # Load data
+        # Load data using universal ingestion
         ingestion = DataIngestion()
-        df = await ingestion.ingest_csv(file_path)
+        ingestion_result = await ingestion.ingest_file(file_path)
+        primary_sheet = dataset.get("primary_sheet", ingestion_result['sheets'][0])
+        df = ingestion_result['dataframes'][primary_sheet]
         
         # Get TIME column if present
         time_col = None
