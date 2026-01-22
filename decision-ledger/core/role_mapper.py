@@ -28,12 +28,21 @@ class ColumnRoleMapper:
         
         for col in df.columns:
             role, confidence = self._detect_column_role(df, col)
+            
+            # Get sample values, converting NaN/inf to None for JSON safety
+            sample_values = []
+            for val in df[col].head(3).tolist():
+                if pd.isna(val) or (isinstance(val, float) and (np.isinf(val) or np.isnan(val))):
+                    sample_values.append(None)
+                else:
+                    sample_values.append(val)
+            
             results.append({
                 "name": col,
                 "detected_role": role,
                 "confidence": round(confidence, 2),
                 "data_type": str(df[col].dtype),
-                "sample_values": df[col].head(3).tolist()
+                "sample_values": sample_values
             })
         
         return results
