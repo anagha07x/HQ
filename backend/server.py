@@ -109,7 +109,7 @@ async def health_check():
 
 @api_router.post("/upload")
 async def upload_dataset(file: UploadFile = File(...)):
-    """Upload CSV dataset for analysis."""
+    """Upload dataset (CSV, XLSX, JSON) for analysis."""
     try:
         # Create uploads directory if it doesn't exist
         upload_dir = Path("/app/decision-ledger/data/uploads")
@@ -121,15 +121,32 @@ async def upload_dataset(file: UploadFile = File(...)):
             content = await file.read()
             await out_file.write(content)
         
-        # Process CSV and detect roles
+        # Universal data ingestion
         ingestion = DataIngestion()
+        
+        # Validate file
+        if not ingestion.validate_file(str(file_path)):
+            return {
+                "status": "error",
+                "message": f"Invalid file format or size. Supported: CSV, XLSX, JSON (max 50MB)"
+            }
+        
+        # Ingest file (handles CSV, XLSX, JSON)
+        ingestion_result = await ingestion.ingest_file(str(file_path))
+        
+        file_type = ingestion_result['file_type']
+        sheets = ingestion_result['sheets']
+        dataframes = ingestion_result['dataframes']
+        file_metadata = ingestion_result['metadata']
+        
+        # For multi-sheet files, use first sheet by default or combine
+        # For now, use first sheet as primary dataset
+        primary_sheet = sheets[0]
+        primary_df = dataframes[primary_sheet]
+        
+        # Detect column roles on primary dataset
         role_mapper = ColumnRoleMapper()
-        
-        # Load CSV
-        df = await ingestion.ingest_csv(str(file_path))
-        
-        # Detect column roles
-        column_roles = role_mapper.detect_roles(df)
+        column_roles = role_mapper.detect_roles(primary_df)
         
         # Store metadata in database
         file_doc = {
@@ -137,24 +154,36 @@ async def upload_dataset(file: UploadFile = File(...)):
             "filename": file.filename,
             "file_path": str(file_path),
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "file_type": file_type,
+            "total_sheets": len(sheets),
+            "sheet_names": sheets,
+            "primary_sheet": primary_sheet,
             "size": len(content),
-            "rows": len(df),
+            "rows": file_metadata['total_rows'],
+            "columns": file_metadata['total_columns'],
             "column_roles": column_roles,
-            "role_mapping_confirmed": False
+            "role_mapping_confirmed": False,
+            "ingestion_metadata": file_metadata
         }
         await db.datasets.insert_one(file_doc)
         
-        # Return response
+        # Return response with file type info
         return {
             "status": "success",
-            "message": f"File '{file.filename}' uploaded and analyzed successfully",
+            "message": f"{file_type.upper()} file '{file.filename}' uploaded and analyzed successfully",
             "dataset_id": file_doc["id"],
-            "rows": len(df),
+            "file_type": file_type,
+            "sheets": sheets,
+            "primary_sheet": primary_sheet,
+            "rows": file_metadata['total_rows'],
             "column_roles": column_roles
         }
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(f"Upload error: {str(e)}", exc_info=True)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": f"Failed to process file: {str(e)}"}
 
 @api_router.post("/chat")
 async def chat(request: ChatRequest):
