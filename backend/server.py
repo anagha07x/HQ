@@ -14,7 +14,8 @@ import uuid
 from datetime import datetime, timezone
 import aiofiles
 import pandas as pd
-from core.ingestion import DataIngestion
+from core.ingestion_engine import DataIngestionEngine
+from core.dataset_registry import DatasetRegistry
 from core.schema_detector import SchemaDetector
 from core.role_mapper import ColumnRoleMapper
 from models.baseline_model import BaselineModel
