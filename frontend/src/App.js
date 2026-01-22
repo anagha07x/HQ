@@ -1,9 +1,9 @@
 import React from 'react';
-import DecisionIntelligenceApp from './components/decision-ui/DecisionIntelligenceApp';
+import ExecutiveIntelligenceApp from './components/decision-ui/ExecutiveIntelligenceApp';
 import './index.css';
 
 function App() {
-  return <DecisionIntelligenceApp />;
+  return <ExecutiveIntelligenceApp />;
 }
 
 export default App;
