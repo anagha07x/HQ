@@ -231,6 +231,118 @@ async def upload_dataset(file: UploadFile = File(...)):
         logger.error(f"Upload error: {str(e)}", exc_info=True)
         return {"status": "error", "message": f"Failed to process file: {str(e)}"}
 
+
+@api_router.post("/analyze-intelligence")
+async def analyze_intelligence(request: ForecastRequest):
+    """Run Decision Intelligence Engine on uploaded dataset.
+    
+    Industry-agnostic analysis that:
+    - Infers sheet roles from structure
+    - Detects entities across sheets
+    - Builds entity relationship graph
+    - Identifies plan-actual gaps
+    - Extracts constraints from text
+    - Generates decision candidates
+    
+    No domain-specific logic - pure structural analysis.
+    """
+    try:
+        # Get dataset metadata from database
+        dataset = await db.datasets.find_one({"id": request.dataset_id}, {"_id": 0})
+        
+        if not dataset:
+            return {"status": "error", "message": "Dataset not found"}
+        
+        file_path = dataset.get("file_path")
+        if not file_path:
+            return {"status": "error", "message": "Dataset file path not found"}
+        
+        # Load data using universal ingestion
+        ingestion = DataIngestion()
+        ingestion_result = await ingestion.ingest_file(file_path)
+        datasets = ingestion_result['dataframes']
+        
+        logger.info(f"Running Decision Intelligence Engine on {len(datasets)} sheets")
+        
+        # Run the Decision Intelligence Engine
+        engine = DecisionIntelligenceEngine()
+        result = engine.analyze(datasets, request.dataset_id)
+        
+        # Convert to dict for response
+        result_dict = engine.to_dict(result)
+        
+        # Sanitize for JSON
+        safe_result = sanitize_for_json(result_dict)
+        
+        # Store analysis in database
+        analysis_doc = {
+            "id": str(uuid.uuid4()),
+            "dataset_id": request.dataset_id,
+            "analysis_type": "decision_intelligence",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "results": safe_result
+        }
+        await db.intelligence_analyses.insert_one(analysis_doc)
+        
+        logger.info(
+            f"Decision Intelligence complete: "
+            f"{result.entity_count} entities, "
+            f"{result.gap_count} gaps, "
+            f"{result.decision_count} decisions"
+        )
+        
+        return {
+            "status": "success",
+            "analysis_id": analysis_doc["id"],
+            "summary": {
+                "sheet_count": result.sheet_count,
+                "entity_count": result.entity_count,
+                "gap_count": result.gap_count,
+                "critical_gaps": result.critical_gaps,
+                "constraint_count": result.constraint_count,
+                "blocking_constraints": result.blocking_constraints,
+                "decision_count": result.decision_count,
+                "top_decision_summary": result.top_decision_summary
+            },
+            "sheet_roles": safe_result.get("sheet_roles", {}),
+            "entities": safe_result.get("entities", [])[:10],  # Top 10
+            "gaps": safe_result.get("gaps", [])[:20],  # Top 20
+            "constraints": safe_result.get("constraints", [])[:10],  # Top 10
+            "decisions": safe_result.get("decisions", []),
+            "processing_notes": safe_result.get("processing_notes", [])
+        }
+        
+    except Exception as e:
+        logger.error(f"Decision Intelligence error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+@api_router.get("/intelligence/{dataset_id}")
+async def get_intelligence_analysis(dataset_id: str):
+    """Get the latest Decision Intelligence analysis for a dataset."""
+    try:
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {
+                "status": "error",
+                "message": "No analysis found. Run /api/analyze-intelligence first."
+            }
+        
+        return {
+            "status": "success",
+            **sanitize_for_json(analysis)
+        }
+        
+    except Exception as e:
+        logger.error(f"Get intelligence error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
 @api_router.post("/chat")
 async def chat(request: ChatRequest):
     """Chat endpoint - READ ONLY from analysis outputs (Step 7: Chat layer)."""
