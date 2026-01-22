@@ -347,6 +347,251 @@ async def get_intelligence_analysis(dataset_id: str):
 
 
 # ============================================================
+# EXECUTIVE INTELLIGENCE API - Human-First Language Layer
+# ============================================================
+
+class ExecutiveIntelligenceRequest(BaseModel):
+    """Request for executive intelligence."""
+    dataset_id: str
+    industry: Optional[str] = "generic"  # generic, pharma, retail, saas
+
+
+@api_router.post("/executive-intelligence")
+async def get_executive_intelligence(request: ExecutiveIntelligenceRequest):
+    """Get human-first executive intelligence with translated vocabulary and grouped decisions.
+    
+    Converts technical outputs to executive-readable language:
+    - Headline and plain English summary
+    - Business impact analysis
+    - Root cause explanation
+    - Recommended actions
+    - Confidence rationale
+    
+    Groups decisions into themes for executive consumption.
+    """
+    try:
+        # Get analysis
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": request.dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found. Run analyze-intelligence first."}
+        
+        results = analysis.get("results", {})
+        
+        # Initialize components
+        explainer = DecisionExplainer(industry=request.industry)
+        grouper = DecisionGroupingEngine()
+        vocab = IndustryVocabularyAdapter(industry=request.industry)
+        
+        # Get raw data
+        decisions = results.get("decisions", [])
+        gaps = results.get("gaps", [])
+        constraints = results.get("constraints", [])
+        entities = results.get("entities", [])
+        sheets = results.get("sheet_roles", {})
+        
+        # Generate executive explanations for decisions
+        explained_decisions = []
+        for d in decisions[:50]:  # Limit for performance
+            explanation = explainer.explain_decision(d)
+            explained_decisions.append({
+                **d,
+                "executive_explanation": explainer.to_dict(explanation)
+            })
+        
+        # Generate executive explanations for top gaps
+        explained_gaps = []
+        critical_gaps = [g for g in gaps if g.get("severity") == "critical"][:20]
+        for g in critical_gaps:
+            explanation = explainer.explain_gap(g)
+            explained_gaps.append({
+                **g,
+                "executive_explanation": explainer.to_dict(explanation)
+            })
+        
+        # Generate executive explanations for entities
+        explained_entities = []
+        for e in entities[:10]:
+            explanation = explainer.explain_entity(e)
+            explained_entities.append({
+                **e,
+                "executive_explanation": explainer.to_dict(explanation)
+            })
+        
+        # Generate executive explanations for constraints
+        explained_constraints = []
+        blocking_constraints = [c for c in constraints if c.get("constraint_type") in ["blocking", "deadline", "dependency"]][:15]
+        for c in blocking_constraints:
+            explanation = explainer.explain_constraint(c)
+            explained_constraints.append({
+                **c,
+                "executive_explanation": explanation
+            })
+        
+        # Group decisions into themes
+        themes, grouping_summary = grouper.group_decisions(decisions, entities, gaps)
+        themes_data = grouper.themes_to_dict()
+        
+        # Translate sheet roles
+        translated_sheets = []
+        for name, role in sheets.items():
+            translated_sheets.append({
+                "name": name,
+                "role": role,
+                "translated_role": vocab.translate_sheet_role(role)
+            })
+        
+        # Build executive summary
+        executive_summary = _build_executive_summary(
+            decisions, gaps, constraints, entities, themes, explainer
+        )
+        
+        return sanitize_for_json({
+            "status": "success",
+            "industry": request.industry,
+            "vocabulary_mode": vocab.industry,
+            "executive_summary": executive_summary,
+            "sheets": translated_sheets,
+            "entities": explained_entities,
+            "decision_themes": themes_data,
+            "theme_summary": {
+                "total_decisions": grouping_summary.total_decisions,
+                "total_themes": grouping_summary.total_themes,
+                "themes_by_type": grouping_summary.themes_by_type,
+                "critical_themes": grouping_summary.critical_themes
+            },
+            "top_decisions": explained_decisions[:10],
+            "critical_gaps": explained_gaps,
+            "blocking_constraints": explained_constraints,
+            "analysis_metadata": {
+                "analyzed_at": results.get("analyzed_at"),
+                "total_decisions": len(decisions),
+                "total_gaps": len(gaps),
+                "total_constraints": len(constraints)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Executive intelligence error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+def _build_executive_summary(
+    decisions: List[Dict],
+    gaps: List[Dict],
+    constraints: List[Dict],
+    entities: List[Dict],
+    themes: List,
+    explainer: DecisionExplainer
+) -> Dict[str, Any]:
+    """Build the executive summary section."""
+    critical_gaps = [g for g in gaps if g.get("severity") == "critical"]
+    blocking_constraints = [c for c in constraints if c.get("constraint_type") in ["blocking", "deadline"]]
+    
+    # Calculate key metrics
+    total_impact = sum(abs(g.get("absolute_gap", 0) or 0) for g in gaps)
+    critical_impact = sum(abs(g.get("absolute_gap", 0) or 0) for g in critical_gaps)
+    
+    # Determine overall status
+    if len(critical_gaps) > len(gaps) * 0.5:
+        status = "critical"
+        status_label = "Requires Immediate Attention"
+    elif len(critical_gaps) > len(gaps) * 0.2:
+        status = "warning"
+        status_label = "Review Recommended"
+    else:
+        status = "normal"
+        status_label = "Operating Within Parameters"
+    
+    # Generate headline
+    if critical_gaps:
+        headline = f"{len(critical_gaps)} Critical Variances Identified Requiring Executive Review"
+    elif gaps:
+        headline = f"{len(gaps)} Performance Variances Detected Across {len(entities)} Dimensions"
+    else:
+        headline = "Analysis Complete - No Critical Issues Detected"
+    
+    # Generate narrative
+    context = explainer.vocab.get_industry_context()
+    narrative = (
+        f"Analysis of the dataset identified {len(gaps)} {context['variance_term']}s across "
+        f"{len(entities)} tracked dimensions. {len(critical_gaps)} items are flagged as critical, "
+        f"representing a potential impact of {critical_impact:,.0f} units. "
+        f"{len(blocking_constraints)} blocking constraints were identified that may impede execution."
+    )
+    
+    return {
+        "headline": headline,
+        "narrative": narrative,
+        "status": status,
+        "status_label": status_label,
+        "key_metrics": {
+            "total_variances": len(gaps),
+            "critical_variances": len(critical_gaps),
+            "total_impact_value": total_impact,
+            "critical_impact_value": critical_impact,
+            "blocking_constraints": len(blocking_constraints),
+            "decision_themes": len(themes),
+            "entities_tracked": len(entities)
+        }
+    }
+
+
+@api_router.get("/executive-intelligence/{dataset_id}/themes/{theme_id}")
+async def get_theme_drill_down(dataset_id: str, theme_id: str, industry: str = "generic"):
+    """Get detailed drill-down for a specific decision theme."""
+    try:
+        analysis = await db.intelligence_analyses.find_one(
+            {"dataset_id": dataset_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]
+        )
+        
+        if not analysis:
+            return {"status": "error", "message": "No analysis found"}
+        
+        results = analysis.get("results", {})
+        decisions = results.get("decisions", [])
+        entities = results.get("entities", [])
+        gaps = results.get("gaps", [])
+        
+        # Rebuild groupings to find the theme
+        grouper = DecisionGroupingEngine()
+        themes, _ = grouper.group_decisions(decisions, entities, gaps)
+        
+        theme = grouper.get_theme(theme_id)
+        if not theme:
+            return {"status": "error", "message": "Theme not found"}
+        
+        # Get decisions for this theme
+        theme_decisions = grouper.get_decisions_for_theme(theme_id, decisions)
+        
+        # Generate explanations
+        explainer = DecisionExplainer(industry=industry)
+        explained_decisions = []
+        for d in theme_decisions:
+            explanation = explainer.explain_decision(d)
+            explained_decisions.append({
+                **d,
+                "executive_explanation": explainer.to_dict(explanation)
+            })
+        
+        return sanitize_for_json({
+            "status": "success",
+            "theme": grouper.to_dict(theme),
+            "decisions": explained_decisions
+        })
+        
+    except Exception as e:
+        logger.error(f"Theme drill-down error: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+
+
+# ============================================================
 # DECISION INTELLIGENCE PLATFORM - NEW API ENDPOINTS
 # ============================================================
 
