@@ -1,46 +1,63 @@
-"""Clean data ingestion module - reads file exactly once."""
+"""Bulletproof data ingestion module - handles body lock issues."""
 
 import pandas as pd
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Any
-from fastapi import UploadFile
+from typing import Dict, Any, Tuple
+from dataclasses import dataclass
 
 from .dataset_registry import DatasetRegistry
 
 
+@dataclass
+class ParsedFile:
+    """Container for parsed file data."""
+    datasets: Dict[str, pd.DataFrame]
+    metadata: Dict[str, Any]
+    source_type: str
+
+
 class DataIngestionEngine:
-    """Clean ingestion engine that reads files exactly once."""
+    """Bulletproof ingestion engine - processes raw bytes only.
+    
+    This engine NEVER touches UploadFile or request objects.
+    All parsing is done from pre-captured bytes.
+    """
     
     SUPPORTED_FORMATS = {'.csv', '.xlsx', '.xls', '.json'}
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
     
-    async def ingest_upload(self, file: UploadFile, dataset_id: str) -> tuple[DatasetRegistry, bytes]:
-        """Ingest file from FastAPI UploadFile.
+    def ingest_from_bytes(
+        self, 
+        file_bytes: bytes, 
+        filename: str, 
+        dataset_id: str
+    ) -> DatasetRegistry:
+        """Ingest file from raw bytes - the ONLY entry point.
         
-        This method reads the file EXACTLY ONCE and converts to BytesIO immediately.
+        This method receives already-captured bytes. It never reads
+        from UploadFile, request.body(), or any stream.
         
         Args:
-            file: FastAPI UploadFile object
+            file_bytes: Raw file bytes (already captured)
+            filename: Original filename for extension detection
             dataset_id: Unique identifier for this dataset
             
         Returns:
-            Tuple of (DatasetRegistry object with parsed data, original file bytes)
+            DatasetRegistry with parsed data
             
         Raises:
-            ValueError: If file format not supported or file too large
+            ValueError: If file format not supported or parsing fails
         """
-        # Validate extension before reading
-        file_ext = Path(file.filename).suffix.lower()
+        # Validate extension
+        file_ext = Path(filename).suffix.lower()
         if file_ext not in self.SUPPORTED_FORMATS:
             raise ValueError(
                 f"Unsupported format: {file_ext}. "
                 f"Supported: {', '.join(self.SUPPORTED_FORMATS)}"
             )
         
-        # READ FILE EXACTLY ONCE
-        file_bytes = await file.read()
         file_size = len(file_bytes)
         
         # Validate size
@@ -50,39 +67,33 @@ class DataIngestionEngine:
                 f"(max {self.MAX_FILE_SIZE / 1024 / 1024:.0f}MB)"
             )
         
-        # Convert to BytesIO immediately - no additional reads
+        if file_size == 0:
+            raise ValueError("Empty file received")
+        
+        # Create fresh BytesIO from bytes
         bytes_io = BytesIO(file_bytes)
         
         # Parse based on format
         source_type = self._get_source_type(file_ext)
         
         if source_type == 'csv':
-            datasets, metadata = self._parse_csv(bytes_io, file.filename, file_size)
+            datasets, metadata = self._parse_csv(bytes_io, filename, file_size)
         elif source_type == 'xlsx':
-            datasets, metadata = self._parse_xlsx(bytes_io, file.filename, file_size)
+            datasets, metadata = self._parse_xlsx(bytes_io, filename, file_size)
         elif source_type == 'json':
-            datasets, metadata = self._parse_json(bytes_io, file.filename, file_size)
+            datasets, metadata = self._parse_json(bytes_io, filename, file_size)
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
         
-        registry = DatasetRegistry(
+        return DatasetRegistry(
             dataset_id=dataset_id,
             source_type=source_type,
             datasets=datasets,
             metadata=metadata
         )
-        
-        return registry, file_bytes
     
     def _get_source_type(self, file_ext: str) -> str:
-        """Map file extension to source type.
-        
-        Args:
-            file_ext: File extension (e.g., '.csv')
-            
-        Returns:
-            Source type: 'csv', 'xlsx', or 'json'
-        """
+        """Map file extension to source type."""
         if file_ext == '.csv':
             return 'csv'
         elif file_ext in {'.xlsx', '.xls'}:
@@ -97,30 +108,33 @@ class DataIngestionEngine:
         bytes_io: BytesIO, 
         filename: str, 
         file_size: int
-    ) -> tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
-        """Parse CSV from BytesIO.
+    ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
+        """Parse CSV from BytesIO."""
+        bytes_io.seek(0)
         
-        Args:
-            bytes_io: BytesIO containing file data
-            filename: Original filename
-            file_size: File size in bytes
-            
-        Returns:
-            Tuple of (datasets dict, metadata dict)
-        """
-        try:
-            bytes_io.seek(0)
-            df = pd.read_csv(bytes_io)
-        except UnicodeDecodeError:
-            bytes_io.seek(0)
-            df = pd.read_csv(bytes_io, encoding='latin-1')
-        except Exception as e:
-            # Try semicolon separator
+        # Try different encodings and separators
+        df = None
+        last_error = None
+        
+        attempts = [
+            {'encoding': 'utf-8'},
+            {'encoding': 'utf-8', 'sep': ';'},
+            {'encoding': 'latin-1'},
+            {'encoding': 'latin-1', 'sep': ';'},
+            {'encoding': 'cp1252'},
+        ]
+        
+        for params in attempts:
             try:
                 bytes_io.seek(0)
-                df = pd.read_csv(bytes_io, sep=';')
-            except:
-                raise ValueError(f"Failed to parse CSV: {str(e)}")
+                df = pd.read_csv(bytes_io, **params)
+                break
+            except Exception as e:
+                last_error = e
+                continue
+        
+        if df is None:
+            raise ValueError(f"Failed to parse CSV: {last_error}")
         
         datasets = {'data': df}
         metadata = {
@@ -140,20 +154,17 @@ class DataIngestionEngine:
         bytes_io: BytesIO, 
         filename: str, 
         file_size: int
-    ) -> tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
-        """Parse XLSX/XLS from BytesIO with multi-sheet support.
+    ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
+        """Parse XLSX/XLS from BytesIO with multi-sheet support."""
+        bytes_io.seek(0)
         
-        Args:
-            bytes_io: BytesIO containing file data
-            filename: Original filename
-            file_size: File size in bytes
-            
-        Returns:
-            Tuple of (datasets dict, metadata dict)
-        """
         try:
-            bytes_io.seek(0)
-            excel_file = pd.ExcelFile(bytes_io)
+            # Determine engine based on extension
+            file_ext = Path(filename).suffix.lower()
+            engine = 'openpyxl' if file_ext == '.xlsx' else 'xlrd'
+            
+            # Read all sheets
+            excel_file = pd.ExcelFile(bytes_io, engine=engine)
             sheet_names = excel_file.sheet_names
             
             datasets = {}
@@ -187,27 +198,20 @@ class DataIngestionEngine:
             return datasets, metadata
             
         except Exception as e:
-            raise ValueError(f"Failed to parse XLSX: {str(e)}")
+            raise ValueError(f"Failed to parse Excel file: {str(e)}")
     
     def _parse_json(
         self, 
         bytes_io: BytesIO, 
         filename: str, 
         file_size: int
-    ) -> tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
-        """Parse JSON from BytesIO and flatten to DataFrame.
+    ) -> Tuple[Dict[str, pd.DataFrame], Dict[str, Any]]:
+        """Parse JSON from BytesIO and flatten to DataFrame."""
+        bytes_io.seek(0)
         
-        Args:
-            bytes_io: BytesIO containing file data
-            filename: Original filename
-            file_size: File size in bytes
-            
-        Returns:
-            Tuple of (datasets dict, metadata dict)
-        """
         try:
-            bytes_io.seek(0)
-            data = json.load(bytes_io)
+            raw_text = bytes_io.read().decode('utf-8')
+            data = json.loads(raw_text)
             
             # Flatten JSON to DataFrame
             df = self._flatten_json(data)
@@ -232,53 +236,32 @@ class DataIngestionEngine:
             raise ValueError(f"Failed to parse JSON: {str(e)}")
     
     def _flatten_json(self, data: Any) -> pd.DataFrame:
-        """Flatten nested JSON to DataFrame.
-        
-        Args:
-            data: JSON data (dict, list, or primitive)
-            
-        Returns:
-            Flattened DataFrame
-        """
+        """Flatten nested JSON to DataFrame."""
         if isinstance(data, list):
             if data and isinstance(data[0], dict):
-                # Array of objects - use json_normalize
                 return pd.json_normalize(data, sep='_')
             else:
-                # Simple array
                 return pd.DataFrame({'value': data})
         
         elif isinstance(data, dict):
-            # Check if simple key-value dict
             if all(not isinstance(v, (dict, list)) for v in data.values()):
                 return pd.DataFrame([data])
             
-            # Look for array of objects in nested dict
             for key, value in data.items():
                 if isinstance(value, list) and value and isinstance(value[0], dict):
                     df = pd.json_normalize(value, sep='_')
-                    # Add other top-level keys as columns
                     for k, v in data.items():
                         if k != key and not isinstance(v, (dict, list)):
                             df[k] = v
                     return df
             
-            # Flatten nested dict
             return pd.json_normalize(data, sep='_')
         
         else:
-            # Primitive value
             return pd.DataFrame({'value': [data]})
     
     def _analyze_json_structure(self, data: Any) -> str:
-        """Analyze JSON structure type.
-        
-        Args:
-            data: JSON data
-            
-        Returns:
-            Structure description
-        """
+        """Analyze JSON structure type."""
         if isinstance(data, list):
             if data and isinstance(data[0], dict):
                 return f"array_of_objects (length: {len(data)})"
