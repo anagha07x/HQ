@@ -182,22 +182,26 @@ async def upload_dataset(file: UploadFile = File(...)):
         with open(file_path, 'wb') as f:
             f.write(file_bytes)
         
+        # Sanitize column_roles for JSON serialization (handles NaN, Inf)
+        safe_column_roles = sanitize_for_json(column_roles)
+        safe_metadata = sanitize_for_json(registry.metadata)
+        
         # Store metadata in database
         file_doc = {
             "id": dataset_id,
-            "filename": registry.metadata['filename'],
+            "filename": safe_metadata['filename'],
             "file_path": str(file_path),
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
             "file_type": registry.source_type,
-            "total_sheets": registry.metadata['total_sheets'],
-            "sheet_names": registry.metadata['sheet_names'],
+            "total_sheets": safe_metadata['total_sheets'],
+            "sheet_names": safe_metadata['sheet_names'],
             "primary_sheet": primary_sheet,
-            "size": registry.metadata['file_size_bytes'],
-            "rows": registry.metadata['total_rows'],
-            "columns": registry.metadata['total_columns'],
-            "column_roles": column_roles,
+            "size": safe_metadata['file_size_bytes'],
+            "rows": safe_metadata['total_rows'],
+            "columns": safe_metadata['total_columns'],
+            "column_roles": safe_column_roles,
             "role_mapping_confirmed": False,
-            "ingestion_metadata": registry.metadata
+            "ingestion_metadata": safe_metadata
         }
         await db.datasets.insert_one(file_doc)
         
@@ -207,17 +211,17 @@ async def upload_dataset(file: UploadFile = File(...)):
             f"sheets: {len(registry.datasets)}"
         )
         
-        # Return response
-        return {
+        # Return sanitized response
+        return sanitize_for_json({
             "status": "success",
             "message": f"{registry.source_type.upper()} file '{filename}' uploaded and analyzed successfully",
             "dataset_id": dataset_id,
             "file_type": registry.source_type,
-            "sheets": registry.metadata['sheet_names'],
+            "sheets": safe_metadata['sheet_names'],
             "primary_sheet": primary_sheet,
-            "rows": registry.metadata['total_rows'],
-            "column_roles": column_roles
-        }
+            "rows": safe_metadata['total_rows'],
+            "column_roles": safe_column_roles
+        })
         
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}", exc_info=True)
